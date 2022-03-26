@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use anyhow::anyhow;
 use anyhow::Result;
 /*
@@ -19,46 +21,56 @@ pub trait ToGraphviz {
 
 impl ToGraphviz for Regex {
     fn graphviz(&self, graph_name: &str) -> String {
-        let mut idx = 0;
-        let mut edges = String::new();
+        let mut edges = Vec::new();
 
-        self.visit(&mut |r| {
-            idx += 1;
+        self.visit(&mut |r, _level| {
+            let id = r.id;
 
-            match r {
-                Regex::Choice(_, _) => {
-                    edges.push_str(&format!("  {idx} [label=\"Choice\"]\n"));
-                    edges.push_str(&format!("  {idx} -> {};\n", idx + 1));
-                    edges.push_str(&format!("  {idx} -> {};\n", idx + 2));
+            match &r.kind {
+                RegexKind::Choice(a, b) => {
+                    edges.push(format!("  {id} [label=\"Choice\"]"));
+                    edges.push(format!("  {id} -> {};", a.id));
+                    edges.push(format!("  {id} -> {};", b.id));
                 }
-                Regex::Sequence(_, _) => {
-                    edges.push_str(&format!("  {idx} [label=\"Sequence\"]\n"));
-                    edges.push_str(&format!("  {idx} -> {};\n", idx + 1));
-                    edges.push_str(&format!("  {idx} -> {};\n", idx + 2));
+                RegexKind::Sequence(a, b) => {
+                    edges.push(format!("  {id} [label=\"Sequence\"]"));
+                    edges.push(format!("  {id} -> {};", a.id));
+                    edges.push(format!("  {id} -> {};", b.id));
                 }
-                Regex::Repetition(_) => {
-                    edges.push_str(&format!("  {idx} [label=\"Repitition\"]\n"));
-                    edges.push_str(&format!("  {idx} -> {};\n", idx + 1));
+                RegexKind::Repetition(a) => {
+                    edges.push(format!("  {id} [label=\"Repetition\"]"));
+                    edges.push(format!("  {id} -> {};", a.id));
                 }
-                Regex::Primitive(c) => {
-                    edges.push_str(&format!("  {idx} [label=\"Primitive ({c})\"]\n"));
+                RegexKind::Primitive(c) => {
+                    edges.push(format!("  {id} [label=\"Primitive ({c})\"]"));
                 }
-                Regex::Blank => {
-                    edges.push_str(&format!("  {idx} [label=\"Blank\"]\n"));
+                RegexKind::Blank => {
+                    edges.push(format!("  {id} [label=\"Blank\"]"));
                 }
             }
         });
 
+        // edges.reverse();
+        let edges = edges.join("\n");
+
         format!(
             "digraph {graph_name} {{\n\
-            {edges}\
+            {edges}\n\
             }}"
         )
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum Regex {
+thread_local!(static REGEX_NODE_ID: Cell<usize> = Cell::new(0));
+
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub struct Regex {
+    id: usize,
+    pub kind: RegexKind,
+}
+
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub enum RegexKind {
     Choice(Box<Regex>, Box<Regex>),
     Sequence(Box<Regex>, Box<Regex>),
     Repetition(Box<Regex>),
@@ -67,37 +79,57 @@ pub enum Regex {
 }
 
 impl Regex {
-    pub fn visit(&self, f: &mut dyn FnMut(&Regex)) {
-        match self {
-            Regex::Choice(a, b) => {
-                f(self);
-                a.visit(f);
-                b.visit(f);
+    pub fn new(kind: RegexKind) -> Self {
+        REGEX_NODE_ID.with(|thread_id| {
+            let id = thread_id.get();
+            thread_id.set(id + 1);
+
+            Self { id, kind }
+        })
+    }
+    pub fn visit(&self, f: &mut dyn FnMut(&Regex, usize)) {
+        self._visit(f, 0)
+    }
+
+    fn _visit(&self, f: &mut dyn FnMut(&Regex, usize), level: usize) {
+        match &self.kind {
+            RegexKind::Choice(a, b) => {
+                f(self, level);
+                a._visit(f, level + 1);
+                b._visit(f, level + 1);
             }
-            Regex::Sequence(a, b) => {
-                f(self);
-                a.visit(f);
-                b.visit(f);
+            RegexKind::Sequence(a, b) => {
+                f(self, level);
+                a._visit(f, level + 1);
+                b._visit(f, level + 1);
             }
-            Regex::Repetition(n) => {
-                f(self);
-                n.visit(f);
+            RegexKind::Repetition(n) => {
+                f(self, level);
+                n._visit(f, level + 1);
             }
-            Regex::Primitive(_) => f(self),
-            Regex::Blank => f(self),
+            RegexKind::Primitive(_) => f(self, level),
+            RegexKind::Blank => f(self, level),
         }
     }
 
     pub fn sequence(a: Regex, b: Regex) -> Self {
-        Self::Sequence(Box::new(a), Box::new(b))
+        Self::new(RegexKind::Sequence(Box::new(a), Box::new(b)))
     }
 
     pub fn choice(a: Regex, b: Regex) -> Self {
-        Self::Choice(Box::new(a), Box::new(b))
+        Self::new(RegexKind::Choice(Box::new(a), Box::new(b)))
     }
 
-    pub fn repitition(n: Regex) -> Self {
-        Self::Repetition(Box::new(n))
+    pub fn repetition(n: Regex) -> Self {
+        Self::new(RegexKind::Repetition(Box::new(n)))
+    }
+
+    pub fn primitive(c: char) -> Self {
+        Self::new(RegexKind::Primitive(c))
+    }
+
+    pub fn blank() -> Self {
+        Self::new(RegexKind::Blank)
     }
 }
 
@@ -145,7 +177,7 @@ impl<'a> Parser<'a> {
         if self.more() && self.peek().unwrap() == '|' {
             self.eat('|')?;
             let regex = self.regex()?;
-            Ok(Regex::Choice(Box::new(term), Box::new(regex)))
+            Ok(Regex::choice(term, regex))
         } else {
             Ok(term)
         }
@@ -157,13 +189,13 @@ impl<'a> Parser<'a> {
         while self.more() && self.peek().unwrap() != ')' && self.peek().unwrap() != '|' {
             let next_factor = self.factor()?;
             if let Some(r) = factor {
-                factor = Some(Regex::Sequence(Box::new(r), Box::new(next_factor)));
+                factor = Some(Regex::sequence(r, next_factor));
             } else {
                 factor = Some(next_factor);
             }
         }
 
-        Ok(factor.unwrap_or(Regex::Blank))
+        Ok(factor.unwrap_or(Regex::blank()))
     }
 
     fn factor(&mut self) -> Result<Regex> {
@@ -171,7 +203,7 @@ impl<'a> Parser<'a> {
 
         while self.more() && self.peek().unwrap() == '*' {
             self.eat('*')?;
-            base = Regex::Repetition(Box::new(base));
+            base = Regex::repetition(base);
         }
 
         Ok(base)
@@ -190,12 +222,12 @@ impl<'a> Parser<'a> {
                 let escaped = self
                     .next()
                     .ok_or(anyhow!("Ended before escaped character"))?;
-                Ok(Regex::Primitive(escaped))
+                Ok(Regex::primitive(escaped))
             }
 
             Some(c) => {
                 self.eat(c).unwrap();
-                Ok(Regex::Primitive(c))
+                Ok(Regex::primitive(c))
             }
             None => Err(anyhow!("Input was empty!")),
         }
@@ -212,7 +244,7 @@ mod test {
         let mut parser = Parser::new(&test_string);
         let re = parser.parse().unwrap();
 
-        assert_eq!(re, Regex::Blank);
+        assert_eq!(re, Regex::blank());
     }
 
     #[test]
@@ -221,7 +253,7 @@ mod test {
         let mut parser = Parser::new(&test_string);
         let re = parser.parse().unwrap();
 
-        assert_eq!(re, Regex::Primitive('a'));
+        assert_eq!(re, Regex::primitive('a'));
     }
     #[test]
     fn parse_sequence() {
@@ -231,7 +263,7 @@ mod test {
 
         assert_eq!(
             re,
-            Regex::sequence(Regex::Primitive('a'), Regex::Primitive('b'))
+            Regex::sequence(Regex::primitive('a'), Regex::primitive('b'))
         );
     }
 
@@ -243,27 +275,7 @@ mod test {
 
         assert_eq!(
             re,
-            Regex::choice(Regex::Primitive('a'), Regex::Primitive('b'),)
+            Regex::choice(Regex::primitive('a'), Regex::primitive('b'),)
         );
-    }
-
-    #[test]
-    fn visit() {
-        let test_string: Vec<char> = "(a|b)*".chars().collect();
-        let mut parser = Parser::new(&test_string);
-        let re = parser.parse().unwrap();
-        re.visit(&mut |r| println!("{r:?}"));
-        assert_eq!(0, 1);
-    }
-
-    #[test]
-    fn graphviz() {
-        let test_string: Vec<char> = "(a|b)*".chars().collect();
-        let mut parser = Parser::new(&test_string);
-        let graph = parser.parse().unwrap().graphviz("G");
-
-        println!("{graph}");
-
-        assert_eq!(0, 1);
     }
 }
