@@ -128,6 +128,38 @@ impl Regex {
         }
     }
 
+    /// Given a source string for the Regex AST, reproduce that source string.
+    /// Basically useless except for testing.
+    pub fn fmt(&self, source: &str) -> String {
+        // TODO: bit buggy around parentheses
+        format!(
+            "{}",
+            match &self.kind {
+                RegexKind::Choice(a, b) => format!(
+                    "{}|{}",
+                    match &a.kind {
+                        RegexKind::Primitive(_) => a.fmt(source),
+                        _ => format!("({})", a.fmt(source)),
+                    },
+                    match &b.kind {
+                        RegexKind::Primitive(_) => b.fmt(source),
+                        _ => format!("({})", b.fmt(source)),
+                    },
+                ),
+                RegexKind::Sequence(a, b) => format!("{}{}", a.fmt(source), b.fmt(source)),
+                RegexKind::Repetition(a) => format!(
+                    "{}*",
+                    match &a.kind {
+                        RegexKind::Primitive(_) => a.fmt(source),
+                        _ => format!("({})", a.fmt(source)),
+                    },
+                ),
+                RegexKind::Primitive(token) => format!("{}", token.lexeme(source)),
+                RegexKind::Blank => format!(""),
+            }
+        )
+    }
+
     pub fn sequence(a: Regex, b: Regex) -> Self {
         Self::new(RegexKind::Sequence(Box::new(a), Box::new(b)))
     }
@@ -201,12 +233,17 @@ impl<'a> Parser<'a> {
     }
 
     fn term(&mut self) -> Result<Regex> {
-        let mut factor = None;
+        if !self.more() {
+            return Ok(Regex::blank());
+        }
 
-        while self.more()
-            && self.peek().unwrap().kind != TokenKind::RightParen
-            && self.peek().unwrap().kind != TokenKind::Pipe
-        {
+        let mut factor = None;
+        let mut last = None;
+        while let Some(token) = self.peek() {
+            if matches!(token.kind, TokenKind::RightParen | TokenKind::Pipe) {
+                last = Some(token.kind);
+                break;
+            }
             let next_factor = self.factor()?;
             if let Some(r) = factor {
                 factor = Some(Regex::sequence(r, next_factor));
@@ -215,7 +252,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        Ok(factor.unwrap_or(Regex::blank()))
+        Ok(factor.ok_or_else(|| anyhow!("Unexpected character: {last:?}"))?)
     }
 
     fn factor(&mut self) -> Result<Regex> {
@@ -262,46 +299,22 @@ impl<'a> Parser<'a> {
 mod test {
     use super::*;
 
-    #[test]
-    fn parse_blank() {
-        let test_string = "";
-        let scanner = Scanner::new(test_string);
-        let mut parser = Parser::new(&scanner);
-        let re = parser.parse().unwrap();
+    macro_rules! test_round_trip {
+        ($n:tt, $s:tt) => {
+            #[test]
+            fn $n() {
+                let scanner = Scanner::new($s);
+                let mut parser = Parser::new(&scanner);
+                let re = parser.parse().unwrap();
 
-        assert_eq!(re, Regex::blank());
+                assert_eq!(re.fmt($s), $s);
+            }
+        };
     }
 
-    //     #[test]
-    //     fn parse_char() {
-    //         let test_string = "a";
-    //         let scanner = Scanner::new(test_string);
-    //         let mut parser = Parser::new(&scanner);
-    //         let re = parser.parse().unwrap();
-
-    //         assert!(re, Regex::primitive('a'));
-    //     }
-    //     #[test]
-    //     fn parse_sequence() {
-    //         let test_string: Vec<char> = "ab".chars().collect();
-    //         let mut parser = Parser::new(&test_string);
-    //         let re = parser.parse().unwrap();
-
-    //         assert_eq!(
-    //             re,
-    //             Regex::sequence(Regex::primitive('a'), Regex::primitive('b'))
-    //         );
-    //     }
-
-    //     #[test]
-    //     fn parse_choice() {
-    //         let test_string: Vec<char> = "a|b".chars().collect();
-    //         let mut parser = Parser::new(&test_string);
-    //         let re = parser.parse().unwrap();
-
-    //         assert_eq!(
-    //             re,
-    //             Regex::choice(Regex::primitive('a'), Regex::primitive('b'),)
-    //         );
-    //     }
+    test_round_trip! {parse_char, "a"}
+    test_round_trip! {parse_sequence, "ab"}
+    test_round_trip! {parse_blank, ""}
+    test_round_trip! {parse_choice, "a|b"}
+    test_round_trip! {parse_repetition, "abc(de)*"}
 }
