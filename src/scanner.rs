@@ -75,7 +75,7 @@ impl ToGraphviz for Scanner<'_> {
         let edges = edges.join("\n");
         format!(
             "digraph {graph_name} {{\n\
-            rankdir=LR;
+                rankdir=LR;\n
             {edges}\n\
             }}"
         )

@@ -58,7 +58,6 @@ impl ToGraphviz for Regex {
             }
         });
 
-        // edges.reverse();
         let edges = edges.join("\n");
 
         format!(
