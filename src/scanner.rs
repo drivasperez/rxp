@@ -8,13 +8,14 @@ pub enum TokenKind {
     Pipe,
     Star,
     GraphemeCluster,
+    BackSlash,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
-    kind: TokenKind,
-    start: usize,
-    length: usize,
+    pub kind: TokenKind,
+    pub start: usize,
+    pub length: usize,
 }
 
 impl Token {
@@ -47,10 +48,14 @@ impl<'a> Scanner<'a> {
             cursor,
         }
     }
+
+    pub fn source(&'a self) -> &'a str {
+        self.source
+    }
 }
 
 impl ToGraphviz for Scanner<'_> {
-    fn graphviz(&self, graph_name: &str) -> String {
+    fn graphviz(&self, graph_name: &str, _: &str) -> String {
         let mut edges = Vec::new();
 
         for (i, token) in self.tokens().enumerate() {
@@ -94,6 +99,7 @@ impl Tokens<'_> {
             ")" => TokenKind::RightParen,
             "*" => TokenKind::Star,
             "|" => TokenKind::Pipe,
+            "\\" => TokenKind::BackSlash,
             _ => TokenKind::GraphemeCluster,
         };
 
@@ -203,5 +209,57 @@ mod test {
                 },
             ]
         )
+    }
+
+    #[test]
+    fn peeking() {
+        let source = "a(*|";
+        let scanner = Scanner::new(source);
+        let mut tokens = scanner.tokens().peekable();
+
+        assert_eq!(
+            tokens.next(),
+            Some(Token {
+                start: 0,
+                length: 1,
+                kind: TokenKind::GraphemeCluster
+            })
+        );
+
+        assert_eq!(
+            tokens.peek(),
+            Some(&Token {
+                start: 1,
+                length: 1,
+                kind: TokenKind::LeftParen
+            })
+        );
+
+        assert_eq!(
+            tokens.peek(),
+            Some(&Token {
+                start: 1,
+                length: 1,
+                kind: TokenKind::LeftParen
+            })
+        );
+
+        assert_eq!(
+            tokens.next(),
+            Some(Token {
+                start: 1,
+                length: 1,
+                kind: TokenKind::LeftParen
+            })
+        );
+
+        assert_eq!(
+            tokens.next(),
+            Some(Token {
+                start: 2,
+                length: 1,
+                kind: TokenKind::Star
+            })
+        );
     }
 }

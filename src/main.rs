@@ -15,13 +15,13 @@ fn main() {
 
     let test_string = regex;
     let scanner = Scanner::new(&test_string);
-    let scanner_graph = scanner.graphviz("Scanner");
+    let scanner_graph = scanner.graphviz("Scanner", &test_string);
 
-    // let mut parser = Parser::new(&test_string);
-    // let regex = parser.parse().unwrap();
-    // let graph = regex.graphviz("Parser");
+    let mut parser = Parser::new(&scanner);
+    let regex = parser.parse().unwrap();
+    let graph = regex.graphviz("Parser", &test_string);
 
     if dot {
-        println!("{scanner_graph}");
+        println!("{graph}");
     }
 }
