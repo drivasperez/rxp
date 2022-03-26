@@ -1,5 +1,8 @@
 use std::cell::Cell;
 
+mod scanner;
+pub use scanner::Scanner;
+
 use anyhow::anyhow;
 use anyhow::Result;
 /*
@@ -63,13 +66,21 @@ impl ToGraphviz for Regex {
 
 thread_local!(static REGEX_NODE_ID: Cell<usize> = Cell::new(0));
 
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct Regex {
     id: usize,
     pub kind: RegexKind,
 }
 
-#[derive(Debug, Hash, PartialEq, Eq)]
+impl PartialEq for Regex {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+
+impl Eq for Regex {}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum RegexKind {
     Choice(Box<Regex>, Box<Regex>),
     Sequence(Box<Regex>, Box<Regex>),

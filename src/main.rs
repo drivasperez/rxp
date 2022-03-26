@@ -1,4 +1,4 @@
-use rex::{Parser, ToGraphviz};
+use rex::{Parser, Scanner, ToGraphviz};
 use structopt::StructOpt;
 
 #[derive(StructOpt)]
@@ -13,12 +13,15 @@ struct Opt {
 fn main() {
     let Opt { regex, dot } = Opt::from_args();
 
-    let test_string: Vec<char> = regex.chars().collect();
-    let mut parser = Parser::new(&test_string);
-    let regex = parser.parse().unwrap();
-    let graph = regex.graphviz("G");
+    let test_string = regex;
+    let scanner = Scanner::new(&test_string);
+    let scanner_graph = scanner.graphviz("Scanner");
+
+    // let mut parser = Parser::new(&test_string);
+    // let regex = parser.parse().unwrap();
+    // let graph = regex.graphviz("Parser");
 
     if dot {
-        println!("{graph}");
+        println!("{scanner_graph}");
     }
 }
