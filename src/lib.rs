@@ -5,6 +5,8 @@ use std::cell::Cell;
 use std::iter::Peekable;
 
 mod scanner;
+mod state;
+
 pub use scanner::Scanner;
 
 use anyhow::anyhow;
@@ -26,7 +28,7 @@ pub trait ToGraphviz {
     fn graphviz(&self, graph_name: &str, source: &str) -> String;
 }
 
-impl ToGraphviz for Regex {
+impl ToGraphviz for Expr {
     fn graphviz(&self, graph_name: &str, source: &str) -> String {
         let mut edges = Vec::new();
 
@@ -34,25 +36,25 @@ impl ToGraphviz for Regex {
             let id = r.id;
 
             match &r.kind {
-                RegexKind::Choice(a, b) => {
+                ExprKind::Choice(a, b) => {
                     edges.push(format!("  {id} [label=\"Choice\"]"));
                     edges.push(format!("  {id} -> {};", a.id));
                     edges.push(format!("  {id} -> {};", b.id));
                 }
-                RegexKind::Sequence(a, b) => {
+                ExprKind::Sequence(a, b) => {
                     edges.push(format!("  {id} [label=\"Sequence\"]"));
                     edges.push(format!("  {id} -> {};", a.id));
                     edges.push(format!("  {id} -> {};", b.id));
                 }
-                RegexKind::Repetition(a) => {
+                ExprKind::Repetition(a) => {
                     edges.push(format!("  {id} [label=\"Repetition\"]"));
                     edges.push(format!("  {id} -> {};", a.id));
                 }
-                RegexKind::Primitive(c) => {
+                ExprKind::Primitive(c) => {
                     let lexeme = c.lexeme(source);
                     edges.push(format!("  {id} [label=\"Primitive ({lexeme})\"]"));
                 }
-                RegexKind::Blank => {
+                ExprKind::Blank => {
                     edges.push(format!("  {id} [label=\"Blank\"]"));
                 }
             }
@@ -71,30 +73,30 @@ impl ToGraphviz for Regex {
 thread_local!(static REGEX_NODE_ID: Cell<usize> = Cell::new(0));
 
 #[derive(Debug)]
-pub struct Regex {
+pub struct Expr {
     id: usize,
-    pub kind: RegexKind,
+    pub kind: ExprKind,
 }
 
-impl PartialEq for Regex {
+impl PartialEq for Expr {
     fn eq(&self, other: &Self) -> bool {
         self.kind == other.kind
     }
 }
 
-impl Eq for Regex {}
+impl Eq for Expr {}
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum RegexKind {
-    Choice(Box<Regex>, Box<Regex>),
-    Sequence(Box<Regex>, Box<Regex>),
-    Repetition(Box<Regex>),
+pub enum ExprKind {
+    Choice(Box<Expr>, Box<Expr>),
+    Sequence(Box<Expr>, Box<Expr>),
+    Repetition(Box<Expr>),
     Primitive(Token),
     Blank,
 }
 
-impl Regex {
-    pub fn new(kind: RegexKind) -> Self {
+impl Expr {
+    pub fn new(kind: ExprKind) -> Self {
         REGEX_NODE_ID.with(|thread_id| {
             let id = thread_id.get();
             thread_id.set(id + 1);
@@ -102,28 +104,28 @@ impl Regex {
             Self { id, kind }
         })
     }
-    pub fn visit(&self, f: &mut dyn FnMut(&Regex, usize)) {
+    pub fn visit(&self, f: &mut dyn FnMut(&Expr, usize)) {
         self._visit(f, 0)
     }
 
-    fn _visit(&self, f: &mut dyn FnMut(&Regex, usize), level: usize) {
+    fn _visit(&self, f: &mut dyn FnMut(&Expr, usize), level: usize) {
         match &self.kind {
-            RegexKind::Choice(a, b) => {
+            ExprKind::Choice(a, b) => {
                 f(self, level);
                 a._visit(f, level + 1);
                 b._visit(f, level + 1);
             }
-            RegexKind::Sequence(a, b) => {
+            ExprKind::Sequence(a, b) => {
                 f(self, level);
                 a._visit(f, level + 1);
                 b._visit(f, level + 1);
             }
-            RegexKind::Repetition(n) => {
+            ExprKind::Repetition(n) => {
                 f(self, level);
                 n._visit(f, level + 1);
             }
-            RegexKind::Primitive(_) => f(self, level),
-            RegexKind::Blank => f(self, level),
+            ExprKind::Primitive(_) => f(self, level),
+            ExprKind::Blank => f(self, level),
         }
     }
 
@@ -134,49 +136,49 @@ impl Regex {
         format!(
             "{}",
             match &self.kind {
-                RegexKind::Choice(a, b) => format!(
+                ExprKind::Choice(a, b) => format!(
                     "{}|{}",
                     match &a.kind {
-                        RegexKind::Primitive(_) => a.fmt(source),
+                        ExprKind::Primitive(_) => a.fmt(source),
                         _ => format!("({})", a.fmt(source)),
                     },
                     match &b.kind {
-                        RegexKind::Primitive(_) => b.fmt(source),
+                        ExprKind::Primitive(_) => b.fmt(source),
                         _ => format!("({})", b.fmt(source)),
                     },
                 ),
-                RegexKind::Sequence(a, b) => format!("{}{}", a.fmt(source), b.fmt(source)),
-                RegexKind::Repetition(a) => format!(
+                ExprKind::Sequence(a, b) => format!("{}{}", a.fmt(source), b.fmt(source)),
+                ExprKind::Repetition(a) => format!(
                     "{}*",
                     match &a.kind {
-                        RegexKind::Primitive(_) => a.fmt(source),
+                        ExprKind::Primitive(_) => a.fmt(source),
                         _ => format!("({})", a.fmt(source)),
                     },
                 ),
-                RegexKind::Primitive(token) => format!("{}", token.lexeme(source)),
-                RegexKind::Blank => format!(""),
+                ExprKind::Primitive(token) => format!("{}", token.lexeme(source)),
+                ExprKind::Blank => format!(""),
             }
         )
     }
 
-    pub fn sequence(a: Regex, b: Regex) -> Self {
-        Self::new(RegexKind::Sequence(Box::new(a), Box::new(b)))
+    pub fn sequence(a: Expr, b: Expr) -> Self {
+        Self::new(ExprKind::Sequence(Box::new(a), Box::new(b)))
     }
 
-    pub fn choice(a: Regex, b: Regex) -> Self {
-        Self::new(RegexKind::Choice(Box::new(a), Box::new(b)))
+    pub fn choice(a: Expr, b: Expr) -> Self {
+        Self::new(ExprKind::Choice(Box::new(a), Box::new(b)))
     }
 
-    pub fn repetition(n: Regex) -> Self {
-        Self::new(RegexKind::Repetition(Box::new(n)))
+    pub fn repetition(n: Expr) -> Self {
+        Self::new(ExprKind::Repetition(Box::new(n)))
     }
 
     pub fn primitive(t: Token) -> Self {
-        Self::new(RegexKind::Primitive(t))
+        Self::new(ExprKind::Primitive(t))
     }
 
     pub fn blank() -> Self {
-        Self::new(RegexKind::Blank)
+        Self::new(ExprKind::Blank)
     }
 }
 
@@ -191,7 +193,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> Result<Regex> {
+    pub fn parse(&mut self) -> Result<Expr> {
         self.regex()
     }
 }
@@ -219,21 +221,21 @@ impl<'a> Parser<'a> {
         self.peek().is_some()
     }
 
-    fn regex(&mut self) -> Result<Regex> {
+    fn regex(&mut self) -> Result<Expr> {
         let term = self.term()?;
 
         if self.more() && self.peek().unwrap().kind == TokenKind::Pipe {
             self.eat(TokenKind::Pipe)?;
             let regex = self.regex()?;
-            Ok(Regex::choice(term, regex))
+            Ok(Expr::choice(term, regex))
         } else {
             Ok(term)
         }
     }
 
-    fn term(&mut self) -> Result<Regex> {
+    fn term(&mut self) -> Result<Expr> {
         if !self.more() {
-            return Ok(Regex::blank());
+            return Ok(Expr::blank());
         }
 
         let mut factor = None;
@@ -245,7 +247,7 @@ impl<'a> Parser<'a> {
             }
             let next_factor = self.factor()?;
             if let Some(r) = factor {
-                factor = Some(Regex::sequence(r, next_factor));
+                factor = Some(Expr::sequence(r, next_factor));
             } else {
                 factor = Some(next_factor);
             }
@@ -254,18 +256,18 @@ impl<'a> Parser<'a> {
         Ok(factor.ok_or_else(|| anyhow!("Unexpected character: {last:?}"))?)
     }
 
-    fn factor(&mut self) -> Result<Regex> {
+    fn factor(&mut self) -> Result<Expr> {
         let mut base = self.base()?;
 
         while self.more() && self.peek().unwrap().kind == TokenKind::Star {
             self.eat(TokenKind::Star)?;
-            base = Regex::repetition(base);
+            base = Expr::repetition(base);
         }
 
         Ok(base)
     }
 
-    fn base(&mut self) -> Result<Regex> {
+    fn base(&mut self) -> Result<Expr> {
         if let Some(peeked) = self.peek().cloned() {
             match peeked.kind {
                 TokenKind::LeftParen => {
@@ -279,13 +281,13 @@ impl<'a> Parser<'a> {
                     let escaped = self
                         .next()
                         .ok_or(anyhow!("Ended before escaped character"))?;
-                    Ok(Regex::primitive(escaped))
+                    Ok(Expr::primitive(escaped))
                 }
                 TokenKind::RightParen => Err(anyhow!("Unmatched close paren")),
 
                 c => {
                     self.eat(c).unwrap();
-                    Ok(Regex::primitive(peeked))
+                    Ok(Expr::primitive(peeked))
                 }
             }
         } else {
