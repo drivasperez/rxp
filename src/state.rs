@@ -1,7 +1,11 @@
 use std::cell::RefCell;
 use typed_arena::Arena;
 
-use crate::{scanner::Token, Expr, ExprKind};
+use crate::{
+    expr::{ChoiceExpr, PrimitiveExpr, RepetitionExpr, SequenceExpr},
+    scanner::Token,
+    Expr,
+};
 
 pub enum TransitionKind {
     Epsilon,
@@ -42,28 +46,28 @@ impl<'a> Compiler<'a> {
     pub fn compile_nfa(&self, regex: Expr) -> Nfa<'a> {
         // TODO: Make unique structs for the kinds of exprs.
         // Pass them to the various helpers.
-        match &regex.kind {
-            ExprKind::Blank => panic!(),
-            ExprKind::Choice(_, _) => self.compile_choice(regex),
-            ExprKind::Sequence(_, _) => self.compile_sequence(regex),
-            ExprKind::Repetition(_) => self.compile_repetition(regex),
-            ExprKind::Primitive(_) => self.compile_literal(regex),
+        match &regex {
+            Expr::Blank(_) => panic!(),
+            Expr::Choice(e) => self.compile_choice(e),
+            Expr::Sequence(e) => self.compile_sequence(e),
+            Expr::Repetition(e) => self.compile_repetition(e),
+            Expr::Primitive(e) => self.compile_literal(e),
         }
     }
 
-    fn compile_literal(&self, regex: Expr) -> Nfa<'a> {
+    fn compile_literal(&self, regex: &PrimitiveExpr) -> Nfa<'a> {
         todo!()
     }
 
-    fn compile_sequence(&self, regex: Expr) -> Nfa<'a> {
+    fn compile_sequence(&self, regex: &SequenceExpr) -> Nfa<'a> {
         todo!()
     }
 
-    fn compile_repetition(&self, regex: Expr) -> Nfa<'a> {
+    fn compile_repetition(&self, regex: &RepetitionExpr) -> Nfa<'a> {
         todo!()
     }
 
-    fn compile_choice(&self, regex: Expr) -> Nfa<'a> {
+    fn compile_choice(&self, regex: &ChoiceExpr) -> Nfa<'a> {
         todo!()
     }
 }
