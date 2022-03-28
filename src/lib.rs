@@ -26,6 +26,17 @@ use anyhow::Result;
            |  '(' <regex> ')'
 */
 
+/// Generate a unique ID
+fn gen_id() -> usize {
+    use std::cell::Cell;
+    thread_local!(static NODE_ID: Cell<usize> = Cell::new(0));
+    NODE_ID.with(|thread_id| {
+        let id = thread_id.get();
+        thread_id.set(id + 1);
+        id
+    })
+}
+
 pub trait ToGraphviz {
     fn graphviz(&self, graph_name: &str, source: &str) -> String;
 }

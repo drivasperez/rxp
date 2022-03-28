@@ -1,15 +1,6 @@
+use crate::gen_id;
 use crate::scanner::Token;
 use crate::ToGraphviz;
-use std::cell::Cell;
-
-thread_local!(static REGEX_NODE_ID: Cell<usize> = Cell::new(0));
-fn gen_id() -> usize {
-    REGEX_NODE_ID.with(|thread_id| {
-        let id = thread_id.get();
-        thread_id.set(id + 1);
-        id
-    })
-}
 
 #[derive(Debug)]
 pub enum Expr {
@@ -35,8 +26,8 @@ impl Expr {
 #[derive(Debug)]
 pub struct ChoiceExpr {
     id: usize,
-    a: Box<Expr>,
-    b: Box<Expr>,
+    pub a: Box<Expr>,
+    pub b: Box<Expr>,
 }
 
 impl ChoiceExpr {
@@ -52,8 +43,8 @@ impl ChoiceExpr {
 #[derive(Debug)]
 pub struct SequenceExpr {
     id: usize,
-    start: Box<Expr>,
-    end: Box<Expr>,
+    pub start: Box<Expr>,
+    pub end: Box<Expr>,
 }
 
 impl SequenceExpr {
@@ -69,7 +60,7 @@ impl SequenceExpr {
 #[derive(Debug)]
 pub struct RepetitionExpr {
     id: usize,
-    term: Box<Expr>,
+    pub term: Box<Expr>,
 }
 
 impl RepetitionExpr {
@@ -84,7 +75,7 @@ impl RepetitionExpr {
 #[derive(Debug)]
 pub struct PrimitiveExpr {
     id: usize,
-    token: Token,
+    pub token: Token,
 }
 
 impl PrimitiveExpr {

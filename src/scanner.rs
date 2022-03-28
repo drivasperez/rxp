@@ -11,7 +11,7 @@ pub enum TokenKind {
     BackSlash,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Token {
     pub kind: TokenKind,
     pub start: usize,
