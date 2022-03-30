@@ -1,13 +1,14 @@
 use anyhow::anyhow;
 use std::str::FromStr;
 
-use rex::{Parser, Scanner, ToGraphviz};
+use rex::{Compiler, Parser, Scanner, ToGraphviz};
 use structopt::StructOpt;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum WhichDot {
     Scanner,
     Parser,
+    Nfa,
 }
 
 impl FromStr for WhichDot {
@@ -17,7 +18,8 @@ impl FromStr for WhichDot {
         match s.to_lowercase().as_str() {
             "scanner" => Ok(Self::Scanner),
             "parser" => Ok(Self::Parser),
-            other => Err(anyhow!("Expected scanner or parser, got {other}")),
+            "nfa" => Ok(Self::Nfa),
+            other => Err(anyhow!("Expected scanner, nfa or parser, got {other}")),
         }
     }
 }
@@ -28,7 +30,7 @@ struct Opt {
     regex: String,
 
     #[structopt(short, long)]
-    dot: Option<WhichDot>,
+    dot: Vec<WhichDot>,
 }
 
 fn main() {
@@ -36,18 +38,24 @@ fn main() {
 
     let test_string = regex;
     let scanner = Scanner::new(&test_string);
-    if let Some(WhichDot::Scanner) = dot {
+    if dot.contains(&WhichDot::Scanner) {
         let scanner_graph = scanner.graphviz("Scanner", &test_string);
         println!("{scanner_graph}");
-        return;
     }
 
     let mut parser = Parser::new(&scanner);
     let regex = parser.parse().unwrap();
 
-    if let Some(WhichDot::Parser) = dot {
+    if dot.contains(&WhichDot::Parser) {
         let graph = regex.graphviz("Parser", &test_string);
         println!("{graph}");
-        return;
+    }
+
+    let compiler = Compiler::new();
+    let nfa = compiler.compile_nfa(&regex);
+
+    if dot.contains(&WhichDot::Nfa) {
+        let graph = nfa.graphviz("Nfa", &test_string);
+        println!("{graph}");
     }
 }

@@ -1,5 +1,6 @@
-use crate::gen_id;
+use crate::{gen_id, ToGraphviz};
 use std::cell::RefCell;
+use std::collections::{HashSet, VecDeque};
 use typed_arena::Arena;
 
 use crate::{
@@ -8,20 +9,33 @@ use crate::{
     Expr,
 };
 
+#[derive(Clone)]
 pub enum TransitionKind {
     Epsilon,
     Literal(Token),
 }
 
+#[derive(Clone)]
 pub struct Transition<'a> {
     kind: TransitionKind,
     state: &'a State<'a>,
 }
 
-#[derive(Default)]
+#[derive(Clone)]
 pub struct State<'a> {
+    id: usize,
     transitions: RefCell<Vec<Transition<'a>>>,
 }
+
+impl<'a> Default for State<'a> {
+    fn default() -> Self {
+        Self {
+            id: gen_id(),
+            transitions: RefCell::default(),
+        }
+    }
+}
+
 impl<'a> State<'a> {
     pub fn new() -> Self {
         Self::default()
@@ -49,6 +63,50 @@ impl<'a> Nfa<'a> {
 
 pub struct Compiler<'a> {
     arena: Arena<State<'a>>,
+}
+
+impl<'a> ToGraphviz for Nfa<'a> {
+    fn graphviz(&self, graph_name: &str, source: &str) -> String {
+        let mut edges = Vec::new();
+
+        let mut queue = VecDeque::new();
+        let mut visited = HashSet::new();
+
+        queue.push_back(self.start.clone());
+        queue.push_back(self.end.clone());
+
+        while let Some(state) = queue.pop_front() {
+            if visited.contains(&state.id) {
+                continue;
+            }
+            let id = state.id;
+            let transitions = state.transitions.borrow();
+            let shape = if transitions.is_empty() {
+                "doublecircle"
+            } else {
+                "circle"
+            };
+            edges.push(format!("{id} [shape={shape} label=\"\"]"));
+            for t in transitions.iter() {
+                let label = match t.kind {
+                    TransitionKind::Literal(token) => token.lexeme(source),
+                    TransitionKind::Epsilon => "\u{03B5}",
+                };
+                edges.push(format!("{id} -> {} [label=\"{label}\"]", t.state.id));
+                queue.push_back(t.state.clone());
+            }
+            visited.insert(state.id);
+        }
+
+        let edges = edges.join("\n");
+
+        format!(
+            "digraph {graph_name} {{\n\
+                rankdir=LR;\n
+            {edges}\n\
+            }}"
+        )
+    }
 }
 
 impl<'a> Compiler<'a> {
