@@ -127,7 +127,7 @@ impl<'a> Parser<'a> {
     }
 
     fn base(&mut self) -> Result<Expr> {
-        if let Some(peeked) = self.peek().cloned() {
+        if let Some(peeked) = self.peek() {
             match peeked.kind {
                 TokenKind::LeftParen => {
                     self.eat(TokenKind::LeftParen)?;
@@ -145,6 +145,7 @@ impl<'a> Parser<'a> {
                 TokenKind::RightParen => Err(anyhow!("Unmatched close paren")),
 
                 c => {
+                    let peeked = peeked.clone();
                     self.eat(c).unwrap();
                     Ok(Expr::primitive(peeked))
                 }

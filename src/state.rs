@@ -50,14 +50,14 @@ impl<'a> State<'a> {
     }
 }
 
-pub struct Nfa<'a> {
+pub struct NfaFragment<'a> {
     start: &'a State<'a>,
     end: &'a State<'a>,
 }
 
-impl<'a> Nfa<'a> {
+impl<'a> NfaFragment<'a> {
     pub fn new(start: &'a State<'a>, end: &'a State<'a>) -> Self {
-        Self { start, end }
+        NfaFragment { start, end }
     }
 }
 
@@ -65,15 +65,14 @@ pub struct Compiler<'a> {
     arena: Arena<State<'a>>,
 }
 
-impl<'a> ToGraphviz for Nfa<'a> {
+impl<'a> ToGraphviz for State<'a> {
     fn graphviz(&self, graph_name: &str, source: &str) -> String {
         let mut edges = Vec::new();
 
         let mut queue = VecDeque::new();
         let mut visited = HashSet::new();
 
-        queue.push_back(self.start.clone());
-        queue.push_back(self.end.clone());
+        queue.push_back(self);
 
         while let Some(state) = queue.pop_front() {
             if visited.contains(&state.id) {
@@ -93,7 +92,7 @@ impl<'a> ToGraphviz for Nfa<'a> {
                     TransitionKind::Epsilon => "\u{03B5}",
                 };
                 edges.push(format!("{id} -> {} [label=\"{label}\"]", t.state.id));
-                queue.push_back(t.state.clone());
+                queue.push_back(t.state);
             }
             visited.insert(state.id);
         }
@@ -102,7 +101,7 @@ impl<'a> ToGraphviz for Nfa<'a> {
 
         format!(
             "digraph {graph_name} {{\n\
-                rankdir=LR;\n
+                rankdir=LR;\n\
             {edges}\n\
             }}"
         )
@@ -120,7 +119,11 @@ impl<'a> Compiler<'a> {
         self.arena.alloc(State::default())
     }
 
-    pub fn compile_nfa(&'a self, expr: &Expr) -> Nfa<'a> {
+    pub fn compile(&'a self, expr: &Expr) -> &'a State {
+        self.compile_nfa(expr).start
+    }
+
+    fn compile_nfa(&'a self, expr: &Expr) -> NfaFragment<'a> {
         match &expr {
             Expr::Blank(_) => panic!(),
             Expr::Choice(e) => self.compile_choice(e),
@@ -130,45 +133,45 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_literal(&'a self, expr: &PrimitiveExpr) -> Nfa<'a> {
+    fn compile_literal(&'a self, expr: &PrimitiveExpr) -> NfaFragment<'a> {
         let start = self.new_state();
         let end = self.new_state();
-        let nfa = Nfa::new(start, end);
-        nfa.start.transit(TransitionKind::Literal(expr.token), end);
+        let frag = NfaFragment::new(start, end);
+        frag.start.transit(TransitionKind::Literal(expr.token), end);
 
-        nfa
+        frag
     }
 
-    fn compile_sequence(&'a self, expr: &SequenceExpr) -> Nfa<'a> {
+    fn compile_sequence(&'a self, expr: &SequenceExpr) -> NfaFragment<'a> {
         let left = self.compile_nfa(&*expr.start);
         let right = self.compile_nfa(&*expr.end);
-        let nfa = Nfa::new(left.start, right.end);
+        let frag = NfaFragment::new(left.start, right.end);
         left.end.transit(TransitionKind::Epsilon, right.start);
 
-        nfa
+        frag
     }
 
-    fn compile_repetition(&'a self, regex: &RepetitionExpr) -> Nfa<'a> {
+    fn compile_repetition(&'a self, regex: &RepetitionExpr) -> NfaFragment<'a> {
         let left = self.compile_nfa(&*regex.term);
-        let nfa = Nfa::new(self.new_state(), self.new_state());
-        nfa.start.transit(TransitionKind::Epsilon, left.start);
-        nfa.start.transit(TransitionKind::Epsilon, nfa.end);
+        let frag = NfaFragment::new(self.new_state(), self.new_state());
+        frag.start.transit(TransitionKind::Epsilon, left.start);
+        frag.start.transit(TransitionKind::Epsilon, frag.end);
         left.end.transit(TransitionKind::Epsilon, left.start);
-        left.end.transit(TransitionKind::Epsilon, nfa.end);
+        left.end.transit(TransitionKind::Epsilon, frag.end);
 
-        nfa
+        frag
     }
 
-    fn compile_choice(&'a self, expr: &ChoiceExpr) -> Nfa<'a> {
+    fn compile_choice(&'a self, expr: &ChoiceExpr) -> NfaFragment<'a> {
         let left = self.compile_nfa(&*expr.a);
         let right = self.compile_nfa(&*expr.b);
 
-        let nfa = Nfa::new(self.new_state(), self.new_state());
-        nfa.start.transit(TransitionKind::Epsilon, left.start);
-        left.end.transit(TransitionKind::Epsilon, nfa.end);
-        nfa.start.transit(TransitionKind::Epsilon, right.start);
-        right.end.transit(TransitionKind::Epsilon, nfa.end);
+        let frag = NfaFragment::new(self.new_state(), self.new_state());
+        frag.start.transit(TransitionKind::Epsilon, left.start);
+        left.end.transit(TransitionKind::Epsilon, frag.end);
+        frag.start.transit(TransitionKind::Epsilon, right.start);
+        right.end.transit(TransitionKind::Epsilon, frag.end);
 
-        nfa
+        frag
     }
 }

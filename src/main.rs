@@ -52,7 +52,7 @@ fn main() {
     }
 
     let compiler = Compiler::new();
-    let nfa = compiler.compile_nfa(&regex);
+    let nfa = compiler.compile(&regex);
 
     if dot.contains(&WhichDot::Nfa) {
         let graph = nfa.graphviz("Nfa", &test_string);
