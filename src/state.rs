@@ -2,6 +2,7 @@ use crate::{gen_id, ToGraphviz};
 use std::cell::RefCell;
 use std::collections::{HashSet, VecDeque};
 use typed_arena::Arena;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     expr::{ChoiceExpr, PrimitiveExpr, RepetitionExpr, SequenceExpr},
@@ -9,19 +10,19 @@ use crate::{
     Expr,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum TransitionKind {
     Epsilon,
     Literal(Token),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Transition<'a> {
     kind: TransitionKind,
     state: &'a State<'a>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct State<'a> {
     id: usize,
     transitions: RefCell<Vec<Transition<'a>>>,
@@ -39,6 +40,51 @@ impl<'a> Default for State<'a> {
 impl<'a> State<'a> {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn matches(&'a self, s: &str, regex_source: &str) -> bool {
+        let mut current_states = vec![self];
+        let mut next_states = Vec::new();
+
+        fn step<'a>(
+            transition: &'a Transition<'a>,
+            regex_source: &str,
+            grapheme: &str,
+            next_states: &mut Vec<&'a State<'a>>,
+        ) {
+            match transition.kind {
+                TransitionKind::Literal(token) => {
+                    if token.lexeme(regex_source) == grapheme {
+                        next_states.push(transition.state);
+                    }
+                }
+                TransitionKind::Epsilon => {
+                    // XXX: Bug here. Getting epsilon shouldn't advance cursor
+                    // in the string. Should just follow epsilons in this iteration of the
+                    // loop, pushing only the next non-epsilon into next_states.
+                    step(transition, regex_source, grapheme, next_states);
+                }
+            };
+        }
+
+        for grapheme in s.graphemes(true) {
+            for state in current_states.drain(..) {
+                let state_transitions = state.transitions.borrow();
+                for transition in state_transitions.iter() {
+                    step(transition, regex_source, grapheme, &mut next_states);
+                }
+            }
+
+            std::mem::swap(&mut current_states, &mut next_states);
+        }
+
+        for state in current_states {
+            if state.transitions.borrow().is_empty() {
+                return true;
+            }
+        }
+
+        false
     }
 }
 
