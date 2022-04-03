@@ -10,7 +10,7 @@ use crate::{
     Expr,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TransitionKind {
     Epsilon,
     Literal(Token),
@@ -43,47 +43,58 @@ impl<'a> State<'a> {
     }
 
     pub fn matches(&'a self, s: &str, regex_source: &str) -> bool {
-        let mut current_states = vec![self];
-        let mut next_states = Vec::new();
+        let mut current_states = VecDeque::new();
+        let mut next_states = VecDeque::new();
 
-        fn step<'a>(
-            transition: &'a Transition<'a>,
-            regex_source: &str,
-            grapheme: &str,
-            next_states: &mut Vec<&'a State<'a>>,
-        ) {
-            match transition.kind {
-                TransitionKind::Literal(token) => {
-                    if token.lexeme(regex_source) == grapheme {
-                        next_states.push(transition.state);
-                    }
-                }
-                TransitionKind::Epsilon => {
-                    // XXX: Bug here. Getting epsilon shouldn't advance cursor
-                    // in the string. Should just follow epsilons in this iteration of the
-                    // loop, pushing only the next non-epsilon into next_states.
-                    step(transition, regex_source, grapheme, next_states);
-                }
-            };
-        }
+        current_states.push_back(self);
 
         for grapheme in s.graphemes(true) {
-            for state in current_states.drain(..) {
-                let state_transitions = state.transitions.borrow();
-                for transition in state_transitions.iter() {
-                    step(transition, regex_source, grapheme, &mut next_states);
+            let mut visited = HashSet::new();
+            while let Some(state) = current_states.pop_front() {
+                let transitions = state.transitions.borrow();
+                if visited.contains(&state.id) {
+                    continue;
                 }
+                for transition in transitions.iter() {
+                    match transition.kind {
+                        TransitionKind::Epsilon => {
+                            // Epsilon transition.
+                            // We need to just follow this without advancing the grapheme.
+                            current_states.push_back(transition.state);
+                        }
+                        TransitionKind::Literal(token) => {
+                            if token.lexeme(regex_source) == grapheme {
+                                // If character matched, push into next_states, which will
+                                // be the queue for the next character.
+                                next_states.push_back(transition.state)
+                            }
+                            // Otherwise, do nothing, this branch does not match and can be
+                            // dropped.
+                        }
+                    }
+                }
+                visited.insert(state.id);
             }
-
             std::mem::swap(&mut current_states, &mut next_states);
         }
 
+        // If current_states contains a match, or an epsilon transition to a match, then we matched.
         for state in current_states {
-            if state.transitions.borrow().is_empty() {
+            let transitions = state.transitions.borrow();
+            if transitions.is_empty() {
                 return true;
+            }
+
+            for transition in transitions.iter() {
+                if transition.kind == TransitionKind::Epsilon
+                    && transition.state.transitions.borrow().is_empty()
+                {
+                    return true;
+                }
             }
         }
 
+        // No match.
         false
     }
 }
