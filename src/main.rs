@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use std::str::FromStr;
 
-use rex::{Compiler, Parser, Scanner, ToGraphviz};
+use rex::{Compiler, Parser, Scanner};
 use structopt::StructOpt;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -41,7 +41,7 @@ fn main() {
     let regex_string = regex;
     let scanner = Scanner::new(&regex_string);
     if dot.contains(&WhichDot::Scanner) {
-        let scanner_graph = scanner.graphviz("Scanner", &regex_string);
+        let scanner_graph = scanner.graphviz("Scanner");
         println!("{scanner_graph}");
     }
 
@@ -49,7 +49,7 @@ fn main() {
     let regex = parser.parse().unwrap();
 
     if dot.contains(&WhichDot::Parser) {
-        let graph = regex.graphviz("Parser", &regex_string);
+        let graph = regex.graphviz("Parser");
         println!("{graph}");
     }
 
@@ -57,12 +57,12 @@ fn main() {
     let nfa = compiler.compile(&regex);
 
     if dot.contains(&WhichDot::Nfa) {
-        let graph = nfa.graphviz("Nfa", &regex_string);
+        let graph = nfa.graphviz("Nfa");
         println!("{graph}");
     }
 
     if let Some(s) = test {
-        println!("{}", nfa.matches(&s, &regex_string));
+        println!("{}", nfa.matches(&s));
     }
 }
 

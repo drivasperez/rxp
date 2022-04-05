@@ -1,17 +1,16 @@
 use crate::gen_id;
 use crate::scanner::Token;
-use crate::ToGraphviz;
 
 #[derive(Debug)]
-pub enum Expr {
-    Choice(ChoiceExpr),
-    Sequence(SequenceExpr),
-    Repetition(RepetitionExpr),
-    Primitive(PrimitiveExpr),
+pub enum Expr<'a> {
+    Choice(ChoiceExpr<'a>),
+    Sequence(SequenceExpr<'a>),
+    Repetition(RepetitionExpr<'a>),
+    Primitive(PrimitiveExpr<'a>),
     Blank(BlankExpr),
 }
 
-impl Expr {
+impl<'a> Expr<'a> {
     pub fn id(&self) -> usize {
         match self {
             Self::Choice(ChoiceExpr { id, .. }) => *id,
@@ -24,14 +23,14 @@ impl Expr {
 }
 
 #[derive(Debug)]
-pub struct ChoiceExpr {
+pub struct ChoiceExpr<'a> {
     id: usize,
-    pub a: Box<Expr>,
-    pub b: Box<Expr>,
+    pub a: Box<Expr<'a>>,
+    pub b: Box<Expr<'a>>,
 }
 
-impl ChoiceExpr {
-    pub fn new(a: Expr, b: Expr) -> Self {
+impl<'a> ChoiceExpr<'a> {
+    pub fn new(a: Expr<'a>, b: Expr<'a>) -> Self {
         Self {
             id: gen_id(),
             a: Box::new(a),
@@ -41,14 +40,14 @@ impl ChoiceExpr {
 }
 
 #[derive(Debug)]
-pub struct SequenceExpr {
+pub struct SequenceExpr<'a> {
     id: usize,
-    pub start: Box<Expr>,
-    pub end: Box<Expr>,
+    pub start: Box<Expr<'a>>,
+    pub end: Box<Expr<'a>>,
 }
 
-impl SequenceExpr {
-    pub fn new(start: Expr, end: Expr) -> Self {
+impl<'a> SequenceExpr<'a> {
+    pub fn new(start: Expr<'a>, end: Expr<'a>) -> Self {
         Self {
             id: gen_id(),
             start: Box::new(start),
@@ -58,13 +57,13 @@ impl SequenceExpr {
 }
 
 #[derive(Debug)]
-pub struct RepetitionExpr {
+pub struct RepetitionExpr<'a> {
     id: usize,
-    pub term: Box<Expr>,
+    pub term: Box<Expr<'a>>,
 }
 
-impl RepetitionExpr {
-    pub fn new(term: Expr) -> Self {
+impl<'a> RepetitionExpr<'a> {
+    pub fn new(term: Expr<'a>) -> Self {
         Self {
             id: gen_id(),
             term: Box::new(term),
@@ -73,13 +72,13 @@ impl RepetitionExpr {
 }
 
 #[derive(Debug)]
-pub struct PrimitiveExpr {
+pub struct PrimitiveExpr<'a> {
     id: usize,
-    pub token: Token,
+    pub token: Token<'a>,
 }
 
-impl PrimitiveExpr {
-    pub fn new(token: Token) -> Self {
+impl<'a> PrimitiveExpr<'a> {
+    pub fn new(token: Token<'a>) -> Self {
         Self {
             id: gen_id(),
             token,
@@ -98,12 +97,12 @@ impl BlankExpr {
     }
 }
 
-impl Expr {
-    pub fn visit(&self, f: &mut dyn FnMut(&Expr, usize)) {
+impl<'a> Expr<'a> {
+    pub fn visit(&self, f: &mut dyn FnMut(&Expr<'a>, usize)) {
         self._visit(f, 0)
     }
 
-    fn _visit(&self, f: &mut dyn FnMut(&Expr, usize), level: usize) {
+    fn _visit(&self, f: &mut dyn FnMut(&Expr<'a>, usize), level: usize) {
         match &self {
             Self::Choice(ChoiceExpr { a, b, .. }) => {
                 f(self, level);
@@ -151,25 +150,25 @@ impl Expr {
                         _ => format!("({})", term.fmt(source)),
                     },
                 ),
-                Self::Primitive(PrimitiveExpr { token, .. }) => format!("{}", token.lexeme(source)),
+                Self::Primitive(PrimitiveExpr { token, .. }) => format!("{}", token.lexeme()),
                 Self::Blank(_) => format!(""),
             }
         )
     }
 
-    pub fn sequence(a: Expr, b: Expr) -> Self {
+    pub fn sequence(a: Expr<'a>, b: Expr<'a>) -> Self {
         Self::Sequence(SequenceExpr::new(a, b))
     }
 
-    pub fn choice(start: Expr, end: Expr) -> Self {
+    pub fn choice(start: Expr<'a>, end: Expr<'a>) -> Self {
         Self::Choice(ChoiceExpr::new(start, end))
     }
 
-    pub fn repetition(n: Expr) -> Self {
+    pub fn repetition(n: Expr<'a>) -> Self {
         Self::Repetition(RepetitionExpr::new(n))
     }
 
-    pub fn primitive(t: Token) -> Self {
+    pub fn primitive(t: Token<'a>) -> Self {
         Self::Primitive(PrimitiveExpr::new(t))
     }
 
@@ -178,8 +177,8 @@ impl Expr {
     }
 }
 
-impl ToGraphviz for Expr {
-    fn graphviz(&self, graph_name: &str, source: &str) -> String {
+impl<'a> Expr<'a> {
+    pub fn graphviz(&'a self, graph_name: &str) -> String {
         let mut edges = Vec::new();
 
         self.visit(&mut |r, _level| match &r {
@@ -198,7 +197,7 @@ impl ToGraphviz for Expr {
                 edges.push(format!("  {id} -> {};", term.id()));
             }
             Self::Primitive(PrimitiveExpr { id, token }) => {
-                let lexeme = token.lexeme(source);
+                let lexeme = token.lexeme();
                 edges.push(format!("  {id} [label=\"Primitive ({lexeme})\"]"));
             }
             Self::Blank(BlankExpr { id }) => {

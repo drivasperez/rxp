@@ -1,4 +1,4 @@
-use crate::{gen_id, ToGraphviz};
+use crate::gen_id;
 use std::cell::RefCell;
 use std::collections::{HashSet, VecDeque};
 use typed_arena::Arena;
@@ -11,14 +11,14 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TransitionKind {
+pub enum TransitionKind<'a> {
     Epsilon,
-    Literal(Token),
+    Literal(Token<'a>),
 }
 
 #[derive(Clone, Debug)]
 pub struct Transition<'a> {
-    kind: TransitionKind,
+    kind: TransitionKind<'a>,
     state: &'a State<'a>,
 }
 
@@ -42,7 +42,7 @@ impl<'a> State<'a> {
         Self::default()
     }
 
-    pub fn matches(&'a self, s: &str, regex_source: &str) -> bool {
+    pub fn matches(&'a self, s: &str) -> bool {
         let mut current_states = VecDeque::new();
         let mut next_states = VecDeque::new();
 
@@ -63,7 +63,7 @@ impl<'a> State<'a> {
                             current_states.push_back(transition.state);
                         }
                         TransitionKind::Literal(token) => {
-                            if token.lexeme(regex_source) == grapheme {
+                            if token.lexeme() == grapheme {
                                 // If character matched, push into next_states, which will
                                 // be the queue for the next character.
                                 next_states.push_back(transition.state)
@@ -80,17 +80,29 @@ impl<'a> State<'a> {
 
         // If current_states contains a match, or an epsilon transition to a match, then we matched.
         for state in current_states {
-            let transitions = state.transitions.borrow();
+            let transitions = state.transitions.take();
             if transitions.is_empty() {
                 return true;
             }
 
-            for transition in transitions.iter() {
-                if transition.kind == TransitionKind::Epsilon
-                    && transition.state.transitions.borrow().is_empty()
-                {
-                    return true;
+            let mut queue: VecDeque<_> = transitions.into_iter().collect();
+            let mut visited = HashSet::new();
+
+            while let Some(t) = queue.pop_front() {
+                if visited.contains(&t.state.id) {
+                    continue;
                 }
+                if t.kind == TransitionKind::Epsilon {
+                    let t_transitions = t.state.transitions.take();
+                    if t_transitions.is_empty() {
+                        return true;
+                    } else {
+                        for trans in t_transitions {
+                            queue.push_back(trans);
+                        }
+                    }
+                }
+                visited.insert(t.state.id);
             }
         }
 
@@ -100,7 +112,7 @@ impl<'a> State<'a> {
 }
 
 impl<'a> State<'a> {
-    pub fn transit(&self, kind: TransitionKind, state: &'a State<'a>) {
+    pub fn transit(&self, kind: TransitionKind<'a>, state: &'a State<'a>) {
         self.transitions
             .borrow_mut()
             .push(Transition { kind, state })
@@ -122,8 +134,8 @@ pub struct Compiler<'a> {
     arena: Arena<State<'a>>,
 }
 
-impl<'a> ToGraphviz for State<'a> {
-    fn graphviz(&self, graph_name: &str, source: &str) -> String {
+impl<'a> State<'a> {
+    pub fn graphviz(&self, graph_name: &str) -> String {
         let mut edges = Vec::new();
 
         let mut queue = VecDeque::new();
@@ -145,7 +157,7 @@ impl<'a> ToGraphviz for State<'a> {
             edges.push(format!("{id} [shape={shape} label=\"\"]"));
             for t in transitions.iter() {
                 let label = match t.kind {
-                    TransitionKind::Literal(token) => token.lexeme(source),
+                    TransitionKind::Literal(token) => token.lexeme(),
                     TransitionKind::Epsilon => "\u{03B5}",
                 };
                 edges.push(format!("{id} -> {} [label=\"{label}\"]", t.state.id));
@@ -176,11 +188,11 @@ impl<'a> Compiler<'a> {
         self.arena.alloc(State::default())
     }
 
-    pub fn compile(&'a self, expr: &Expr) -> &'a State {
+    pub fn compile(&'a self, expr: &Expr<'a>) -> &'a State {
         self.compile_nfa(expr).start
     }
 
-    fn compile_nfa(&'a self, expr: &Expr) -> NfaFragment<'a> {
+    fn compile_nfa(&'a self, expr: &Expr<'a>) -> NfaFragment<'a> {
         match &expr {
             Expr::Blank(_) => panic!(),
             Expr::Choice(e) => self.compile_choice(e),
@@ -190,7 +202,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_literal(&'a self, expr: &PrimitiveExpr) -> NfaFragment<'a> {
+    fn compile_literal(&'a self, expr: &PrimitiveExpr<'a>) -> NfaFragment<'a> {
         let start = self.new_state();
         let end = self.new_state();
         let frag = NfaFragment::new(start, end);
@@ -199,7 +211,7 @@ impl<'a> Compiler<'a> {
         frag
     }
 
-    fn compile_sequence(&'a self, expr: &SequenceExpr) -> NfaFragment<'a> {
+    fn compile_sequence(&'a self, expr: &SequenceExpr<'a>) -> NfaFragment<'a> {
         let left = self.compile_nfa(&*expr.start);
         let right = self.compile_nfa(&*expr.end);
         let frag = NfaFragment::new(left.start, right.end);
@@ -208,7 +220,7 @@ impl<'a> Compiler<'a> {
         frag
     }
 
-    fn compile_repetition(&'a self, regex: &RepetitionExpr) -> NfaFragment<'a> {
+    fn compile_repetition(&'a self, regex: &RepetitionExpr<'a>) -> NfaFragment<'a> {
         let left = self.compile_nfa(&*regex.term);
         let frag = NfaFragment::new(self.new_state(), self.new_state());
         frag.start.transit(TransitionKind::Epsilon, left.start);
@@ -219,7 +231,7 @@ impl<'a> Compiler<'a> {
         frag
     }
 
-    fn compile_choice(&'a self, expr: &ChoiceExpr) -> NfaFragment<'a> {
+    fn compile_choice(&'a self, expr: &ChoiceExpr<'a>) -> NfaFragment<'a> {
         let left = self.compile_nfa(&*expr.a);
         let right = self.compile_nfa(&*expr.b);
 

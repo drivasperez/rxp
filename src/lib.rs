@@ -37,10 +37,6 @@ fn gen_id() -> usize {
     })
 }
 
-pub trait ToGraphviz {
-    fn graphviz(&self, graph_name: &str, source: &str) -> String;
-}
-
 pub struct Parser<'a> {
     input: Peekable<Tokens<'a>>,
 }
@@ -58,7 +54,7 @@ impl<'a> Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn peek(&mut self) -> Option<&Token> {
+    fn peek(&mut self) -> Option<&Token<'a>> {
         self.input.peek()
     }
 
@@ -72,7 +68,7 @@ impl<'a> Parser<'a> {
             None => Err(anyhow!("Expected {expected:?}, string empty")),
         }
     }
-    fn next(&mut self) -> Option<Token> {
+    fn next(&mut self) -> Option<Token<'a>> {
         self.input.next()
     }
 
@@ -80,7 +76,7 @@ impl<'a> Parser<'a> {
         self.peek().is_some()
     }
 
-    fn regex(&mut self) -> Result<Expr> {
+    fn regex(&mut self) -> Result<Expr<'a>> {
         let term = self.term()?;
 
         if self.more() && self.peek().unwrap().kind == TokenKind::Pipe {
@@ -92,7 +88,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn term(&mut self) -> Result<Expr> {
+    fn term(&mut self) -> Result<Expr<'a>> {
         if !self.more() {
             return Ok(Expr::blank());
         }
@@ -115,7 +111,7 @@ impl<'a> Parser<'a> {
         Ok(factor.ok_or_else(|| anyhow!("Unexpected character: {last:?}"))?)
     }
 
-    fn factor(&mut self) -> Result<Expr> {
+    fn factor(&mut self) -> Result<Expr<'a>> {
         let mut base = self.base()?;
 
         while self.more() && self.peek().unwrap().kind == TokenKind::Star {
@@ -126,7 +122,7 @@ impl<'a> Parser<'a> {
         Ok(base)
     }
 
-    fn base(&mut self) -> Result<Expr> {
+    fn base(&mut self) -> Result<Expr<'a>> {
         if let Some(peeked) = self.peek() {
             match peeked.kind {
                 TokenKind::LeftParen => {
