@@ -1,6 +1,5 @@
 use expr::Expr;
 use scanner::Token;
-use scanner::TokenKind;
 use scanner::Tokens;
 use std::iter::Peekable;
 
@@ -54,13 +53,13 @@ impl<'a> Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn peek(&mut self) -> Option<&Token<'a>> {
-        self.input.peek()
+    fn peek(&mut self) -> Option<Token<'a>> {
+        self.input.peek().cloned()
     }
 
-    fn eat(&mut self, expected: TokenKind) -> Result<Token> {
+    fn eat(&mut self, expected: Token) -> Result<Token> {
         match self.peek() {
-            Some(c) if c.kind == expected => {
+            Some(c) if c == expected => {
                 let next = self.input.next().unwrap();
                 Ok(next)
             }
@@ -68,6 +67,7 @@ impl<'a> Parser<'a> {
             None => Err(anyhow!("Expected {expected:?}, string empty")),
         }
     }
+
     fn next(&mut self) -> Option<Token<'a>> {
         self.input.next()
     }
@@ -79,8 +79,7 @@ impl<'a> Parser<'a> {
     fn regex(&mut self) -> Result<Expr<'a>> {
         let term = self.term()?;
 
-        if self.more() && self.peek().unwrap().kind == TokenKind::Pipe {
-            self.eat(TokenKind::Pipe)?;
+        if self.eat(Token::Pipe).is_ok() {
             let regex = self.regex()?;
             Ok(Expr::choice(term, regex))
         } else {
@@ -96,8 +95,8 @@ impl<'a> Parser<'a> {
         let mut factor = None;
         let mut last = None;
         while let Some(token) = self.peek() {
-            if matches!(token.kind, TokenKind::RightParen | TokenKind::Pipe) {
-                last = Some(token.kind);
+            if matches!(token, Token::RightParen | Token::Pipe) {
+                last = Some(token);
                 break;
             }
             let next_factor = self.factor()?;
@@ -114,8 +113,7 @@ impl<'a> Parser<'a> {
     fn factor(&mut self) -> Result<Expr<'a>> {
         let mut base = self.base()?;
 
-        while self.more() && self.peek().unwrap().kind == TokenKind::Star {
-            self.eat(TokenKind::Star)?;
+        while self.eat(Token::Star).is_ok() {
             base = Expr::repetition(base);
         }
 
@@ -124,24 +122,23 @@ impl<'a> Parser<'a> {
 
     fn base(&mut self) -> Result<Expr<'a>> {
         if let Some(peeked) = self.peek() {
-            match peeked.kind {
-                TokenKind::LeftParen => {
-                    self.eat(TokenKind::LeftParen)?;
+            match peeked {
+                Token::LeftParen => {
+                    self.eat(Token::LeftParen)?;
                     let r = self.regex()?;
-                    self.eat(TokenKind::RightParen)?;
+                    self.eat(Token::RightParen)?;
                     Ok(r)
                 }
-                TokenKind::BackSlash => {
-                    self.eat(TokenKind::BackSlash)?;
+                Token::BackSlash => {
+                    self.eat(Token::BackSlash)?;
                     let escaped = self
                         .next()
                         .ok_or(anyhow!("Ended before escaped character"))?;
                     Ok(Expr::primitive(escaped))
                 }
-                TokenKind::RightParen => Err(anyhow!("Unmatched close paren")),
+                Token::RightParen => Err(anyhow!("Unmatched close paren")),
 
                 c => {
-                    let peeked = peeked.clone();
                     self.eat(c).unwrap();
                     Ok(Expr::primitive(peeked))
                 }

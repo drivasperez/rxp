@@ -2,19 +2,13 @@ use unicode_segmentation::Graphemes;
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Copy, Debug, Clone, PartialEq, Eq)]
-pub enum TokenKind {
+pub enum Token<'a> {
     LeftParen,
     RightParen,
     Pipe,
     Star,
-    GraphemeCluster,
+    GraphemeCluster(&'a str),
     BackSlash,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct Token<'a> {
-    pub kind: TokenKind,
-    pub lexeme: &'a str,
 }
 
 impl<'a> Token<'a> {
@@ -22,7 +16,25 @@ impl<'a> Token<'a> {
     /// Panics if the lexeme is not valid UTF-8; a good way of achieving that is passing a source
     /// buffer that was not used to generate the token.
     pub fn lexeme(&self) -> &'a str {
-        self.lexeme
+        match self {
+            Self::LeftParen => "(",
+            Self::RightParen => ")",
+            Self::Pipe => "|",
+            Self::Star => "*",
+            Self::GraphemeCluster(s) => s,
+            Self::BackSlash => "\\",
+        }
+    }
+
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::LeftParen => "LeftParen",
+            Self::RightParen => "RightParen",
+            Self::Pipe => "Pipe",
+            Self::Star => "Star",
+            Self::GraphemeCluster(_) => "GraphemeCluster",
+            Self::BackSlash => "BackSlash",
+        }
     }
 }
 
@@ -53,11 +65,11 @@ impl Scanner<'_> {
         let mut edges = Vec::new();
 
         for (i, token) in self.tokens().enumerate() {
-            if let TokenKind::GraphemeCluster = &token.kind {
+            if let Token::GraphemeCluster(_) = &token {
                 let lexeme = token.lexeme();
                 edges.push(format!("  {i} [label=\"{lexeme}\"]"));
             } else {
-                let kind = &token.kind;
+                let kind = &token.kind();
                 edges.push(format!("  {i} [label=\"{kind:?}\"]"));
             }
 
@@ -82,17 +94,13 @@ pub struct Tokens<'a> {
 
 impl<'a> Tokens<'a> {
     fn next_token(&mut self) -> Option<Token<'a>> {
-        self.graphemes.next().map(|lexeme| {
-            let kind = match lexeme {
-                "(" => TokenKind::LeftParen,
-                ")" => TokenKind::RightParen,
-                "*" => TokenKind::Star,
-                "|" => TokenKind::Pipe,
-                "\\" => TokenKind::BackSlash,
-                _ => TokenKind::GraphemeCluster,
-            };
-
-            Token { kind, lexeme }
+        self.graphemes.next().map(|lexeme| match lexeme {
+            "(" => Token::LeftParen,
+            ")" => Token::RightParen,
+            "*" => Token::Star,
+            "|" => Token::Pipe,
+            "\\" => Token::BackSlash,
+            other => Token::GraphemeCluster(other),
         })
     }
 }
