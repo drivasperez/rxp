@@ -244,3 +244,65 @@ impl<'a> Compiler<'a> {
         frag
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::{Parser, Scanner};
+
+    macro_rules! match_regex {
+        ($regex:tt, $test:tt, $matches:expr) => {{
+            let scanner = Scanner::new($regex);
+            let mut parser = Parser::new(&scanner);
+            let re = parser.parse().unwrap();
+            let compiler = Compiler::new();
+            let nfa = compiler.compile(&re);
+            assert_eq!($matches, nfa.matches($test));
+        }};
+    }
+
+    #[test]
+    fn single_char() {
+        match_regex!("a", "a", true);
+        match_regex!("a", "ab", false);
+        match_regex!("a", "ba", false);
+    }
+
+    #[test]
+    fn sequence() {
+        match_regex!("ab", "ab", true);
+        match_regex!("ab", "ba", false);
+        match_regex!("abcdefghijk", "abcdefghijk", true);
+        match_regex!("ab", "aaaaaab", false);
+    }
+
+    #[test]
+    fn closure() {
+        match_regex!("a*", "a", true);
+        match_regex!("a*", "aaaaaaaaa", true);
+        match_regex!("ab*", "ab", true);
+        match_regex!("ab*", "abb", true);
+        match_regex!("ab*", "abbbbbb", true);
+        match_regex!("ab*", "aba", false);
+        match_regex!("ab*", "abababababab", false);
+        match_regex!("(ab)*", "abababababab", true);
+    }
+
+    #[test]
+    fn choice() {
+        match_regex!("a|b", "a", true);
+        match_regex!("a|b", "b", true);
+        match_regex!("a|b", "c", false);
+        match_regex!("a|b", "ac", false);
+        match_regex!("a|b", "ca", false);
+        match_regex!("hello|goodbye", "hello", true);
+        match_regex!("hello|goodbye", "goodbye", true);
+    }
+
+    #[test]
+    fn mixed() {
+        match_regex!("(hello)*|goodbye", "hellohellohellohello", true);
+        match_regex!("(hello)*|goodbye", "hellogoodbyehellohello", false);
+        match_regex!("((hello)*|goodbye)*", "hellogoodbyehellohello", true);
+    }
+}
