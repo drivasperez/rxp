@@ -42,6 +42,9 @@ impl<'a> State<'a> {
         Self::default()
     }
 
+    /// Match the NFA state machine against a candidate string.
+    /// Returns true if the NFA ends in a matching state.
+    /// Returns false if the NFA fails to match the string.
     pub fn matches(&'a self, s: &str) -> bool {
         let mut current_states = VecDeque::new();
         let mut next_states = VecDeque::new();
