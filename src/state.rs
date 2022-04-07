@@ -75,38 +75,33 @@ impl<'a> State<'a> {
                 }
                 visited.insert(state.id);
             }
+            // next_states is now current_states.
+            // Previous current_states is empty so we can reuse it as next_states.
             std::mem::swap(&mut current_states, &mut next_states);
         }
 
         // If current_states contains a match, or an epsilon transition to a match, then we matched.
-        for state in current_states {
-            let transitions = state.transitions.take();
+        let mut visited = HashSet::new();
+        while let Some(state) = current_states.pop_front() {
+            let transitions = state.transitions.borrow();
             if transitions.is_empty() {
+                // NFA State with no transitions is a match.
                 return true;
             }
-
-            let mut queue: VecDeque<_> = transitions.into_iter().collect();
-            let mut visited = HashSet::new();
-
-            while let Some(t) = queue.pop_front() {
-                if visited.contains(&t.state.id) {
-                    continue;
-                }
-                if t.kind == TransitionKind::Epsilon {
-                    let t_transitions = t.state.transitions.take();
-                    if t_transitions.is_empty() {
-                        return true;
-                    } else {
-                        for trans in t_transitions {
-                            queue.push_back(trans);
-                        }
-                    }
-                }
-                visited.insert(t.state.id);
+            if visited.contains(&state.id) {
+                // Avoid cycles.
+                continue;
             }
+            for transition in transitions.iter() {
+                if let TransitionKind::Epsilon = transition.kind {
+                    // Follow any remaining epsilon transitions.
+                    current_states.push_back(transition.state);
+                }
+            }
+            visited.insert(state.id);
         }
 
-        // No match.
+        // No match was found.
         false
     }
 }
