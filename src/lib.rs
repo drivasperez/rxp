@@ -12,18 +12,20 @@ pub use state::Compiler;
 
 use anyhow::anyhow;
 use anyhow::Result;
-/*
-   <regex> ::= <term> '|' <regex>
-            |  <term>
 
-   <term> ::= { <factor> }
-
-   <factor> ::= <base> { '*' }
-
-   <base> ::= <char>
-           |  '\' <char>
-           |  '(' <regex> ')'
-*/
+// Grammar:
+//
+// <regex>  ::= <term> '|' <regex>
+//            | <term>
+//
+// <term>   ::= { <factor> }
+//
+// <factor> ::= <base> { '*' }
+//
+// <base>   ::= <char>
+//            | '\' <char>
+//            | '(' <regex> ')'
+//
 
 /// Generate a unique ID
 fn gen_id() -> usize {
