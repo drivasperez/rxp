@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use std::str::FromStr;
 
-use rex::{Compiler, Parser, Scanner};
+use rex::{Compiler, DfaCompiler, Parser, Scanner};
 use structopt::StructOpt;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -9,6 +9,7 @@ enum Phase {
     Scanner,
     Parser,
     Nfa,
+    Dfa,
 }
 
 impl FromStr for Phase {
@@ -19,7 +20,8 @@ impl FromStr for Phase {
             "scanner" => Ok(Self::Scanner),
             "parser" => Ok(Self::Parser),
             "nfa" => Ok(Self::Nfa),
-            other => Err(anyhow!("Expected scanner, nfa or parser, got {other}")),
+            "dfa" => Ok(Self::Dfa),
+            other => Err(anyhow!("Expected scanner, dfa, nfa or parser, got {other}")),
         }
     }
 }
@@ -56,7 +58,7 @@ fn test_expression(regex_string: &str, test_string: &str) -> anyhow::Result<bool
 }
 
 fn visualise_expression(regex_string: &str, phase: Phase) -> anyhow::Result<String> {
-    let scanner = Scanner::new(&regex_string);
+    let scanner = Scanner::new(regex_string);
     if phase == Phase::Scanner {
         return Ok(scanner.graphviz("Scanner"));
     }
@@ -75,7 +77,14 @@ fn visualise_expression(regex_string: &str, phase: Phase) -> anyhow::Result<Stri
         return Ok(nfa.graphviz("Nfa"));
     }
 
-    unreachable!()
+    let dfa_compiler = DfaCompiler::new();
+    let dfa = dfa_compiler.create_dfa(nfa);
+
+    if phase == Phase::Dfa {
+        return Ok(dfa.graphviz("Nfa"));
+    }
+
+    Err(anyhow!("Haven't implemented that yet."))
 }
 
 fn main() -> anyhow::Result<()> {

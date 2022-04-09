@@ -1,5 +1,5 @@
 use std::cell::{Cell, RefCell};
-use std::collections::{HashSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use typed_arena::Arena;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -160,6 +160,7 @@ where
     v
 }
 
+#[derive(Debug)]
 pub struct NfaFragment<'a> {
     start: &'a State<'a>,
     end: &'a State<'a>,
@@ -176,6 +177,169 @@ pub struct Compiler<'a> {
     arena: Arena<State<'a>>,
 }
 
+#[derive(Debug)]
+pub struct DfaTransition<'a> {
+    lexeme: &'a str,
+    state: &'a DfaState<'a>,
+}
+
+#[derive(Debug)]
+pub struct DfaState<'a> {
+    id: usize,
+    transitions: RefCell<Vec<DfaTransition<'a>>>,
+    nfa_states: Vec<&'a State<'a>>,
+}
+
+impl<'a> DfaState<'a> {
+    pub fn new(id: usize, dfa_states: Vec<&'a State<'a>>) -> Self {
+        Self {
+            id,
+            transitions: RefCell::default(),
+            nfa_states: dfa_states,
+        }
+    }
+
+    /// Returns true if this state is an accepting state.
+    /// A DFA state is accepting if one of its constituent NFA states is accepting.
+    fn is_accepting(&self) -> bool {
+        epsilon_closure(self.nfa_states.iter().map(|x| *x))
+            .iter()
+            .any(|x| x.transitions.borrow().is_empty())
+    }
+
+    fn transit(&self, lexeme: &'a str, state: &'a DfaState<'a>) {
+        self.transitions
+            .borrow_mut()
+            .push(DfaTransition { lexeme, state })
+    }
+
+    /// move(T, a) is the set of states to which there is a transition on input symbol `a` for some NFA
+    /// state in T.
+    fn find_possible_transitions(&self) -> HashMap<&'a str, Vec<&'a State<'a>>> {
+        let mut map: HashMap<&'a str, Vec<&'a State<'a>>> = HashMap::new();
+
+        for state in &self.nfa_states {
+            let transitions = state.transitions.borrow();
+            for transition in transitions.iter() {
+                if let TransitionKind::Literal(token) = transition.kind {
+                    map.entry(token.lexeme())
+                        .or_default()
+                        .push(transition.state)
+                }
+            }
+        }
+
+        map
+    }
+
+    pub fn graphviz(&self, graph_name: &str) -> String {
+        fn id_to_label(id: usize) -> char {
+            (id as u8 + 65) as char
+        }
+        let mut edges = Vec::new();
+
+        let mut queue = VecDeque::new();
+        let mut visited = HashSet::new();
+
+        queue.push_back(self);
+
+        while let Some(state) = queue.pop_front() {
+            if visited.contains(&state.id) {
+                continue;
+            }
+            let id = id_to_label(state.id);
+            let shape = if state.is_accepting() {
+                "doublecircle"
+            } else {
+                "circle"
+            };
+            let transitions = state.transitions.borrow();
+            edges.push(format!("{id} [shape={shape}]"));
+            for t in transitions.iter() {
+                let label = t.lexeme;
+                edges.push(format!(
+                    "{id} -> {} [label=\"{label}\"]",
+                    id_to_label(t.state.id)
+                ));
+                queue.push_back(t.state);
+            }
+            visited.insert(state.id);
+        }
+
+        let edges = edges.join("\n");
+
+        format!(
+            "digraph {graph_name} {{\n\
+                rankdir=LR;\n\
+            {edges}\n\
+            }}"
+        )
+    }
+}
+
+trait WithIds {
+    fn ids(&self) -> BTreeSet<usize>;
+}
+
+impl WithIds for Vec<&State<'_>> {
+    fn ids(&self) -> BTreeSet<usize> {
+        self.iter().map(|s| s.id).collect()
+    }
+}
+
+#[derive(Default)]
+pub struct DfaCompiler<'a> {
+    states: Arena<DfaState<'a>>,
+    state_map: RefCell<HashMap<BTreeSet<usize>, &'a DfaState<'a>>>,
+    id_counter: Cell<usize>,
+}
+
+impl<'a> DfaCompiler<'a> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn new_state(&'a self, states: Vec<&'a State<'a>>) -> &'a DfaState<'a> {
+        let ids = states.ids();
+
+        self.state_map.borrow_mut().entry(ids).or_insert_with(|| {
+            let id = self.id_counter.get();
+            self.id_counter.set(id + 1);
+            self.states.alloc(DfaState::new(id, states))
+        })
+    }
+
+    pub fn create_dfa(&'a self, nfa: &'a State<'a>) -> &'a DfaState<'a> {
+        // Begin with state 0 and calculate eps-closure.
+        let initial_states = epsilon_closure(vec![nfa]);
+
+        let initial_dfa_state = self.new_state(initial_states);
+        let mut state_queue = VecDeque::from([initial_dfa_state]);
+        let mut visited = HashSet::new();
+
+        while let Some(state) = state_queue.pop_front() {
+            let possible_choices = state.find_possible_transitions();
+            for (key, mvs) in possible_choices {
+                let closure = epsilon_closure(mvs);
+
+                if closure.ids() == state.nfa_states.ids() {
+                    state.transit(key, &state);
+                } else {
+                    let closure_ids = closure.ids();
+                    let new_state = self.new_state(closure);
+                    state.transit(key, new_state);
+                    if !visited.contains(&closure_ids) {
+                        state_queue.push_back(new_state);
+                        visited.insert(closure_ids);
+                    }
+                }
+            }
+        }
+
+        initial_dfa_state
+    }
+}
+
 impl<'a> Compiler<'a> {
     pub fn new() -> Self {
         Self {
@@ -188,11 +352,6 @@ impl<'a> Compiler<'a> {
         let id = self.id_counter.get();
         self.id_counter.set(id + 1);
         self.arena.alloc(State::new(id))
-    }
-
-    pub fn create_dfa(&'a self, nfa: &'a State<'a>) {
-        // Begin with state 0 and calculate eps-closure.
-        let initial_states = epsilon_closure(vec![nfa]);
     }
 
     pub fn compile(&'a self, expr: &Expr<'a>) -> &'a State {
