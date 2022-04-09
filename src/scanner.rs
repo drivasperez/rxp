@@ -70,11 +70,11 @@ impl Scanner<'_> {
                 edges.push(format!("  {i} [label=\"{lexeme}\"]"));
             } else {
                 let kind = &token.kind();
-                edges.push(format!("  {i} [label=\"{kind:?}\"]"));
+                edges.push(format!("  {i} [label={kind:?}]"));
             }
 
             if i != 0 {
-                edges.push(format!("  {} -> {}", i - 1, i))
+                edges.push(format!("  {} -> {};", i - 1, i))
             }
         }
 

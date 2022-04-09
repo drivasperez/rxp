@@ -6,8 +6,8 @@ use structopt::StructOpt;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Phase {
-    Scanner,
-    Parser,
+    Tokens,
+    Ast,
     Nfa,
     Dfa,
 }
@@ -17,8 +17,8 @@ impl FromStr for Phase {
 
     fn from_str(s: &str) -> Result<Self, <Self as FromStr>::Err> {
         match s.to_lowercase().as_str() {
-            "scanner" => Ok(Self::Scanner),
-            "parser" => Ok(Self::Parser),
+            "tokens" => Ok(Self::Tokens),
+            "ast" => Ok(Self::Ast),
             "nfa" => Ok(Self::Nfa),
             "dfa" => Ok(Self::Dfa),
             other => Err(anyhow!("Expected scanner, dfa, nfa or parser, got {other}")),
@@ -73,14 +73,14 @@ fn test_expression(
 
 fn visualise_expression(regex_string: &str, phase: Phase) -> anyhow::Result<String> {
     let scanner = Scanner::new(regex_string);
-    if phase == Phase::Scanner {
+    if phase == Phase::Tokens {
         return Ok(scanner.graphviz("Scanner"));
     }
 
     let mut parser = Parser::new(&scanner);
     let regex = parser.parse().unwrap();
 
-    if phase == Phase::Parser {
+    if phase == Phase::Ast {
         return Ok(regex.graphviz("Parser"));
     }
 
