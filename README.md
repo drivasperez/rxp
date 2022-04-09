@@ -1,6 +1,6 @@
 # rex
 
-Rex is a command-line utility for visualising and testing simple regular expressions. It takes regular expressions as text input. It has two subcommands, `dot` and `test`
+Rex is a command-line utility for visualising and testing simple regular expressions. It has two subcommands, `dot` and `test`.
 
 ## `rex dot <phase> <regex>`
 
