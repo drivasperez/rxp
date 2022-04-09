@@ -1,45 +1,45 @@
-# rex
+# rxp
 
-Rex is a command-line utility for visualising and testing simple regular expressions. It takes regular expressions as text input. It has two subcommands, `dot` and `test`
+Rxp (Regex eXPlorer) is a command-line utility for visualising and testing simple regular expressions. It takes regular expressions as text input. It has two subcommands, `dot` and `test`
 
-## `rex dot <phase> <regex>`
+## `rxp dot <phase> <regex>`
 
-`rex dot` takes a simple regular expression as text input, and outputs various abstract representations of the regex at different phases of compilation. The output format is the [GraphViz](https://graphviz.org/) `dot` language, which can be visualised with the [`dot(1)` utility](https://graphviz.org/download/).
+`rxp dot` takes a simple regular expression as text input, and outputs various abstract representations of the regex at different phases of compilation. The output format is the [GraphViz](https://graphviz.org/) `dot` language, which can be visualised with the [`dot(1)` utility](https://graphviz.org/download/).
 
 ### Output formats: 
 
-- `rex dot tokens <regex>`: Outputs the regular expression as a stream of tokens.
-- `rex dot ast <regex>`: Outputs the regular expression as an abstract syntax tree.
-- `rex dot nfa <regex>`: Outputs the regular expression as an NFA (Non-deterministic finite automaton).
-- `rex dot dfa <regex>`: Outputs the regular expression as a DFA (Deterministic finite automaton).
+- `rxp dot tokens <regex>`: Outputs the regular expression as a stream of tokens.
+- `rxp dot ast <regex>`: Outputs the regular expression as an abstract syntax tree.
+- `rxp dot nfa <regex>`: Outputs the regular expression as an NFA (Non-deterministic finite automaton).
+- `rxp dot dfa <regex>`: Outputs the regular expression as a DFA (Deterministic finite automaton).
 
 ### Examples:
 
-- `rex dot tokens '(a|b)*cde' | dot -Tpng > tokens_example.png`: 
-  ![Example of the rex dot tokens command](images/tokens_example.png)
+- `rxp dot tokens '(a|b)*cde' | dot -Tpng > tokens_example.png`: 
+  ![Example of the rxp dot tokens command](images/tokens_example.png)
 
-- `rex dot ast '(a|b)*cde' | dot -Tpng > ast_example.png`: 
-  ![Example of the rex dot ast command](images/ast_example.png)
+- `rxp dot ast '(a|b)*cde' | dot -Tpng > ast_example.png`: 
+  ![Example of the rxp dot ast command](images/ast_example.png)
 
-- `rex dot nfa '(a|b)*cde' | dot -Tpng > nfa_example.png`: 
-  ![Example of the rex dot nfa command](images/nfa_example.png)
+- `rxp dot nfa '(a|b)*cde' | dot -Tpng > nfa_example.png`: 
+  ![Example of the rxp dot nfa command](images/nfa_example.png)
   Arrows marked `ε` are [epsilon transitions](https://en.wikipedia.org/wiki/Epsilon_transition), or transitions which the automaton can make without consuming any input. Arrows marked with any other unicode grapheme cluster are transitions which the automaton can make by consuming a single element of its input. This might get confusing if your test string is in Greek. Sorry!
 
-- `rex dot dfa '(a|b)*cde' | dot -Tpng > dfa_example.png`: 
-  ![Example of the rex dot dfa command](images/dfa_example.png)
+- `rxp dot dfa '(a|b)*cde' | dot -Tpng > dfa_example.png`: 
+  ![Example of the rxp dot dfa command](images/dfa_example.png)
 
-## `rex test <regex> <test-string>`
+## `rxp test <regex> <test-string>`
 
-`rex test` takes a simple regular expression and a test string to evaluate against the regex. It will print `true` if the test string matches the regular expression and `false` if it does not. 
+`rxp test` takes a simple regular expression and a test string to evaluate against the regex. It will print `true` if the test string matches the regular expression and `false` if it does not. 
 
 ### Examples:
 
-- `rex test '(a|b)*cde' abababcde`
+- `rxp test '(a|b)*cde' abababcde`
   ```
   true
   ```
 
-- `rex test '(a|b)*cde' ohno`
+- `rxp test '(a|b)*cde' ohno`
   ```
   false
   ```
