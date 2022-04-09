@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "A command-line utility to explore and test simple regular expressions"
 license = "MIT"
+homepage = "https://github.com/drivasperez/rxp"
+repository = "https://github.com/drivasperez/rxp"
+keywords = ["regex", "regular expressions"]
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
