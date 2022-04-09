@@ -325,9 +325,6 @@ impl<'a> DfaState<'a> {
     }
 
     pub fn graphviz(&self, graph_name: &str) -> String {
-        fn id_to_label(id: usize) -> char {
-            (id as u8 + 65) as char
-        }
         let mut edges = Vec::new();
 
         let mut queue = VecDeque::new();
@@ -339,7 +336,7 @@ impl<'a> DfaState<'a> {
             if visited.contains(&state.id) {
                 continue;
             }
-            let id = id_to_label(state.id);
+            let id = state.id;
             let shape = if state.is_accepting() {
                 "doublecircle"
             } else {
@@ -349,10 +346,7 @@ impl<'a> DfaState<'a> {
             edges.push(format!("{id} [shape={shape}]"));
             for t in transitions.iter() {
                 let label = t.lexeme;
-                edges.push(format!(
-                    "{id} -> {} [label=\"{label}\"]",
-                    id_to_label(t.state.id)
-                ));
+                edges.push(format!("{id} -> {} [label=\"{label}\"]", t.state.id));
                 queue.push_back(t.state);
             }
             visited.insert(state.id);
