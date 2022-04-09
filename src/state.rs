@@ -84,55 +84,11 @@ impl<'a> State<'a> {
         }
 
         // If current_states contains a match, or an epsilon transition to a match, then we matched.
-        let mut visited = HashSet::new();
-        while let Some(state) = current_states.pop_front() {
-            let transitions = state.transitions.borrow();
-            if transitions.is_empty() {
-                // NFA State with no transitions is a match.
-                return true;
-            }
-            if visited.contains(&state.id) {
-                // Avoid cycles.
-                continue;
-            }
-            for transition in transitions.iter() {
-                if let TransitionKind::Epsilon = transition.kind {
-                    // Follow any remaining epsilon transitions.
-                    current_states.push_back(transition.state);
-                }
-            }
-            visited.insert(state.id);
-        }
-
-        // No match was found.
-        false
+        epsilon_closure(current_states)
+            .iter()
+            .any(|x| x.transitions.borrow().is_empty())
     }
-}
 
-impl<'a> State<'a> {
-    pub fn transit(&self, kind: TransitionKind<'a>, state: &'a State<'a>) {
-        self.transitions
-            .borrow_mut()
-            .push(Transition { kind, state })
-    }
-}
-
-pub struct NfaFragment<'a> {
-    start: &'a State<'a>,
-    end: &'a State<'a>,
-}
-
-impl<'a> NfaFragment<'a> {
-    pub fn new(start: &'a State<'a>, end: &'a State<'a>) -> Self {
-        NfaFragment { start, end }
-    }
-}
-
-pub struct Compiler<'a> {
-    arena: Arena<State<'a>>,
-}
-
-impl<'a> State<'a> {
     pub fn graphviz(&self, graph_name: &str) -> String {
         let mut edges = Vec::new();
 
@@ -175,6 +131,59 @@ impl<'a> State<'a> {
     }
 }
 
+impl<'a> State<'a> {
+    fn transit(&self, kind: TransitionKind<'a>, state: &'a State<'a>) {
+        self.transitions
+            .borrow_mut()
+            .push(Transition { kind, state })
+    }
+}
+
+/// The epsilon closure of a set of states is the set of states accessible
+/// from those states by making only epsilon transitions.
+fn epsilon_closure<'a, T>(states: T) -> Vec<&'a State<'a>>
+where
+    T: IntoIterator<Item = &'a State<'a>>,
+{
+    let mut v: Vec<&State> = Vec::new();
+    let mut queue: VecDeque<&State> = states.into_iter().collect();
+    let mut visited = HashSet::new();
+
+    while let Some(state) = queue.pop_front() {
+        let transitions = state.transitions.borrow();
+        if visited.contains(&state.id) {
+            // Avoid cycles.
+            continue;
+        }
+        for transition in transitions.iter() {
+            if let TransitionKind::Epsilon = transition.kind {
+                // Follow any remaining epsilon transitions.
+                queue.push_back(&transition.state);
+            }
+        }
+        v.push(state);
+        visited.insert(state.id);
+    }
+    v
+}
+
+pub struct NfaFragment<'a> {
+    start: &'a State<'a>,
+    end: &'a State<'a>,
+}
+
+impl<'a> NfaFragment<'a> {
+    pub fn new(start: &'a State<'a>, end: &'a State<'a>) -> Self {
+        NfaFragment { start, end }
+    }
+}
+
+pub struct Compiler<'a> {
+    arena: Arena<State<'a>>,
+}
+
+impl<'a> State<'a> {}
+
 impl<'a> Compiler<'a> {
     pub fn new() -> Self {
         Self {
@@ -184,6 +193,11 @@ impl<'a> Compiler<'a> {
 
     fn new_state(&'a self) -> &'a State {
         self.arena.alloc(State::default())
+    }
+
+    pub fn create_dfa(&'a self, nfa: &'a State<'a>) {
+        // Begin with state 0 and calculate eps-closure.
+        let initial_states = epsilon_closure(vec![nfa]);
     }
 
     pub fn compile(&'a self, expr: &Expr<'a>) -> &'a State {
