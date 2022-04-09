@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use std::str::FromStr;
 
-use rex::{Compiler, DfaCompiler, Parser, Scanner};
+use rxp::{Compiler, DfaCompiler, Parser, Scanner};
 use structopt::StructOpt;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
