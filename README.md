@@ -4,7 +4,7 @@ Rex is a command-line utility for visualising and testing simple regular express
 
 ## `rex dot <phase> <regex>`
 
-`rex dot` takes a simple regular expression as text input, and outputs various abstract representations of the regex at different phases of compilation. The output format is the GraphViz `dot` language, which can be visualised with the `dot(1)` utility.
+`rex dot` takes a simple regular expression as text input, and outputs various abstract representations of the regex at different phases of compilation. The output format is the [GraphViz](https://graphviz.org/) `dot` language, which can be visualised with the [`dot(1)` utility](https://graphviz.org/download/).
 
 ### Output formats: 
 
@@ -23,6 +23,7 @@ Rex is a command-line utility for visualising and testing simple regular express
 
 - `rex dot nfa '(a|b)*cde' | dot -Tpng > nfa_example.png`: 
   ![Example of the rex dot nfa command](images/nfa_example.png)
+  Arrows marked `ε` are [epsilon transitions](https://en.wikipedia.org/wiki/Epsilon_transition), or transitions which the automaton can make without consuming any input. Arrows marked with any other unicode grapheme cluster are transitions which the automaton can make by consuming a single element of its input. This might get confusing if your test string is in Greek. Sorry!
 
 - `rex dot dfa '(a|b)*cde' | dot -Tpng > dfa_example.png`: 
   ![Example of the rex dot dfa command](images/dfa_example.png)
