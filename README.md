@@ -1,6 +1,6 @@
 # rxp
 
-Rxp (__R__egex e__XP__lorer) is a command-line utility for visualising and testing simple regular expressions. It has two subcommands, `dot` and `test`.
+Rxp (**R**egex e**XP**lorer) is a command-line utility for visualising and testing simple regular expressions. It has two subcommands, `dot` and `test`.
 
 ## `rxp dot <phase> <regex>`
 
