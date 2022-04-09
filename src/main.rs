@@ -4,14 +4,14 @@ use std::str::FromStr;
 use rex::{Compiler, Parser, Scanner};
 use structopt::StructOpt;
 
-#[derive(Debug, PartialEq, Eq)]
-enum WhichDot {
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum Phase {
     Scanner,
     Parser,
     Nfa,
 }
 
-impl FromStr for WhichDot {
+impl FromStr for Phase {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, <Self as FromStr>::Err> {
@@ -25,57 +25,64 @@ impl FromStr for WhichDot {
 }
 
 #[derive(StructOpt)]
-struct Opt {
-    /// The regex to be evaluated
-    regex: String,
-
-    test: Option<String>,
-
-    #[structopt(short, long)]
-    dot: Vec<WhichDot>,
+/// A utility for evaluating and exploring regular expressions.
+enum Opt {
+    /// Emits a graphviz visualisation of a regular expression at various phases of compilation.
+    Dot {
+        /// The phase that should be visualised. Options: "scanner", "parser", "nfa".
+        phase: Phase,
+        /// The regex to be visualised.
+        regex: String,
+    },
+    /// Tests a regular expression against a given test string.
+    Test {
+        /// The regular expression to be tested.
+        regex: String,
+        /// The string to be tested against the regular expression.
+        test_string: String,
+    },
 }
 
-fn main() {
-    let Opt { regex, test, dot } = Opt::from_args();
+fn test_expression(regex_string: &str, test_string: &str) -> anyhow::Result<bool> {
+    let scanner = Scanner::new(regex_string);
+    let mut parser = Parser::new(&scanner);
+    let regex = parser.parse()?;
+    let compiler = Compiler::new();
+    let nfa = compiler.compile(&regex);
 
-    let regex_string = regex;
+    let res = nfa.matches(test_string);
+
+    Ok(res)
+}
+
+fn visualise_expression(regex_string: &str, phase: Phase) -> anyhow::Result<String> {
     let scanner = Scanner::new(&regex_string);
-    if dot.contains(&WhichDot::Scanner) {
-        let scanner_graph = scanner.graphviz("Scanner");
-        println!("{scanner_graph}");
+    if phase == Phase::Scanner {
+        return Ok(scanner.graphviz("Scanner"));
     }
 
     let mut parser = Parser::new(&scanner);
     let regex = parser.parse().unwrap();
 
-    if dot.contains(&WhichDot::Parser) {
-        let graph = regex.graphviz("Parser");
-        println!("{graph}");
+    if phase == Phase::Parser {
+        return Ok(regex.graphviz("Parser"));
     }
 
     let compiler = Compiler::new();
     let nfa = compiler.compile(&regex);
 
-    if dot.contains(&WhichDot::Nfa) {
-        let graph = nfa.graphviz("Nfa");
-        println!("{graph}");
+    if phase == Phase::Nfa {
+        return Ok(nfa.graphviz("Nfa"));
     }
 
-    if let Some(s) = test {
-        println!("{}", nfa.matches(&s));
-    }
+    unreachable!()
 }
 
-// fn main() {
-//     let regex_string = "(hel)*";
-//     let test_string = "helhelhelhe";
+fn main() -> anyhow::Result<()> {
+    match Opt::from_args() {
+        Opt::Dot { phase, regex } => println!("{}", visualise_expression(&regex, phase)?),
+        Opt::Test { regex, test_string } => println!("{}", test_expression(&regex, &test_string)?),
+    }
 
-//     let scanner = Scanner::new(&regex_string);
-//     let mut parser = Parser::new(&scanner);
-//     let regex = parser.parse().unwrap();
-
-//     let compiler = Compiler::new();
-//     let compiled = compiler.compile(&regex);
-
-//     println!("{}", compiled.matches(test_string, regex_string));
-// }
+    Ok(())
+}
