@@ -6,7 +6,7 @@ description = "A command-line utility to explore and test simple regular express
 license = "MIT"
 homepage = "https://github.com/drivasperez/rxp"
 repository = "https://github.com/drivasperez/rxp"
-keywords = ["regex", "regular expressions"]
+keywords = ["regex"]
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
