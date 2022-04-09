@@ -305,6 +305,25 @@ impl<'a> DfaState<'a> {
         map
     }
 
+    pub fn matches(&self, s: &str) -> bool {
+        let mut current_state = self;
+
+        for grapheme in s.graphemes(true) {
+            if let Some(transition) = current_state
+                .transitions
+                .borrow()
+                .iter()
+                .find(|transition| transition.lexeme == grapheme)
+            {
+                current_state = transition.state;
+            } else {
+                return false;
+            }
+        }
+
+        current_state.is_accepting()
+    }
+
     pub fn graphviz(&self, graph_name: &str) -> String {
         fn id_to_label(id: usize) -> char {
             (id as u8 + 65) as char
@@ -426,6 +445,9 @@ mod test {
             let compiler = Compiler::new();
             let nfa = compiler.compile(&re);
             assert_eq!($matches, nfa.matches($test));
+            let dfa_compiler = DfaCompiler::new();
+            let dfa = dfa_compiler.create_dfa(nfa);
+            assert_eq!($matches, dfa.matches($test));
         }};
     }
 

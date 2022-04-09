@@ -42,17 +42,31 @@ enum Opt {
         regex: String,
         /// The string to be tested against the regular expression.
         test_string: String,
+        /// Whether the regex should be compiled to a DFA (Deterministic Finite Automaton) before
+        /// testing.
+        #[structopt(long)]
+        dfa: bool,
     },
 }
 
-fn test_expression(regex_string: &str, test_string: &str) -> anyhow::Result<bool> {
+fn test_expression(
+    regex_string: &str,
+    test_string: &str,
+    construct_dfa: bool,
+) -> anyhow::Result<bool> {
     let scanner = Scanner::new(regex_string);
     let mut parser = Parser::new(&scanner);
     let regex = parser.parse()?;
     let compiler = Compiler::new();
     let nfa = compiler.compile(&regex);
 
-    let res = nfa.matches(test_string);
+    let res = if !construct_dfa {
+        nfa.matches(test_string)
+    } else {
+        let dfa_compiler = DfaCompiler::new();
+        let dfa = dfa_compiler.create_dfa(nfa);
+        dfa.matches(test_string)
+    };
 
     Ok(res)
 }
@@ -90,7 +104,11 @@ fn visualise_expression(regex_string: &str, phase: Phase) -> anyhow::Result<Stri
 fn main() -> anyhow::Result<()> {
     match Opt::from_args() {
         Opt::Dot { phase, regex } => println!("{}", visualise_expression(&regex, phase)?),
-        Opt::Test { regex, test_string } => println!("{}", test_expression(&regex, &test_string)?),
+        Opt::Test {
+            regex,
+            test_string,
+            dfa,
+        } => println!("{}", test_expression(&regex, &test_string, dfa)?),
     }
 
     Ok(())
