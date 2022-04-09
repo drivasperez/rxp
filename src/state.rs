@@ -1,5 +1,4 @@
-use crate::gen_id;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashSet, VecDeque};
 use typed_arena::Arena;
 use unicode_segmentation::UnicodeSegmentation;
@@ -28,18 +27,12 @@ pub struct State<'a> {
     transitions: RefCell<Vec<Transition<'a>>>,
 }
 
-impl<'a> Default for State<'a> {
-    fn default() -> Self {
+impl<'a> State<'a> {
+    pub fn new(id: usize) -> Self {
         Self {
-            id: gen_id(),
+            id,
             transitions: RefCell::default(),
         }
-    }
-}
-
-impl<'a> State<'a> {
-    pub fn new() -> Self {
-        Self::default()
     }
 
     /// Match the NFA state machine against a candidate string.
@@ -108,7 +101,7 @@ impl<'a> State<'a> {
             } else {
                 "circle"
             };
-            edges.push(format!("{id} [shape={shape} label=\"\"]"));
+            edges.push(format!("{id} [shape={shape}]"));
             for t in transitions.iter() {
                 let label = match t.kind {
                     TransitionKind::Literal(token) => token.lexeme(),
@@ -179,20 +172,22 @@ impl<'a> NfaFragment<'a> {
 }
 
 pub struct Compiler<'a> {
+    id_counter: Cell<usize>,
     arena: Arena<State<'a>>,
 }
-
-impl<'a> State<'a> {}
 
 impl<'a> Compiler<'a> {
     pub fn new() -> Self {
         Self {
             arena: Arena::new(),
+            id_counter: Cell::new(0),
         }
     }
 
     fn new_state(&'a self) -> &'a State {
-        self.arena.alloc(State::default())
+        let id = self.id_counter.get();
+        self.id_counter.set(id + 1);
+        self.arena.alloc(State::new(id))
     }
 
     pub fn create_dfa(&'a self, nfa: &'a State<'a>) {
@@ -233,8 +228,10 @@ impl<'a> Compiler<'a> {
     }
 
     fn compile_repetition(&'a self, regex: &RepetitionExpr<'a>) -> NfaFragment<'a> {
+        let entry = self.new_state();
         let left = self.compile_nfa(&*regex.term);
-        let frag = NfaFragment::new(self.new_state(), self.new_state());
+        let exit = self.new_state();
+        let frag = NfaFragment::new(entry, exit);
         frag.start.transit(TransitionKind::Epsilon, left.start);
         frag.start.transit(TransitionKind::Epsilon, frag.end);
         left.end.transit(TransitionKind::Epsilon, left.start);
@@ -244,10 +241,12 @@ impl<'a> Compiler<'a> {
     }
 
     fn compile_choice(&'a self, expr: &ChoiceExpr<'a>) -> NfaFragment<'a> {
+        let entry = self.new_state();
         let left = self.compile_nfa(&*expr.a);
         let right = self.compile_nfa(&*expr.b);
+        let exit = self.new_state();
 
-        let frag = NfaFragment::new(self.new_state(), self.new_state());
+        let frag = NfaFragment::new(entry, exit);
         frag.start.transit(TransitionKind::Epsilon, left.start);
         left.end.transit(TransitionKind::Epsilon, frag.end);
         frag.start.transit(TransitionKind::Epsilon, right.start);
