@@ -81,7 +81,7 @@ fn visualise_expression(regex_string: &str, phase: Phase) -> anyhow::Result<Stri
     let dfa = dfa_compiler.create_dfa(nfa);
 
     if phase == Phase::Dfa {
-        return Ok(dfa.graphviz("Nfa"));
+        return Ok(dfa.graphviz("Dfa"));
     }
 
     Err(anyhow!("Haven't implemented that yet."))

@@ -1,4 +1,4 @@
-use expr::Expr;
+use expr::{BlankExpr, ChoiceExpr, Expr, PrimitiveExpr, RepetitionExpr, SequenceExpr};
 use scanner::Token;
 use scanner::Tokens;
 use std::iter::Peekable;
@@ -27,30 +27,54 @@ use anyhow::Result;
 //            | '(' <regex> ')'
 //
 
-/// Generate a unique ID
-fn gen_id() -> usize {
-    use std::cell::Cell;
-    thread_local!(static NODE_ID: Cell<usize> = Cell::new(0));
-    NODE_ID.with(|thread_id| {
-        let id = thread_id.get();
-        thread_id.set(id + 1);
-        id
-    })
-}
-
 pub struct Parser<'a> {
+    id_counter: usize,
     input: Peekable<Tokens<'a>>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(scanner: &'a Scanner<'a>) -> Self {
         Self {
+            id_counter: 0,
             input: scanner.tokens().peekable(),
         }
     }
 
+    fn get_id(&mut self) -> usize {
+        let id = self.id_counter;
+        self.id_counter += 1;
+        id
+    }
+
     pub fn parse(&mut self) -> Result<Expr> {
         self.regex()
+    }
+}
+
+impl<'a> Parser<'a> {
+    fn sequence_expr(&mut self, a: Expr<'a>, b: Expr<'a>) -> Expr<'a> {
+        let id = self.get_id();
+        Expr::Sequence(SequenceExpr::new(id, a, b))
+    }
+
+    fn choice_expr(&mut self, start: Expr<'a>, end: Expr<'a>) -> Expr<'a> {
+        let id = self.get_id();
+        Expr::Choice(ChoiceExpr::new(id, start, end))
+    }
+
+    fn repetition_expr(&mut self, n: Expr<'a>) -> Expr<'a> {
+        let id = self.get_id();
+        Expr::Repetition(RepetitionExpr::new(id, n))
+    }
+
+    fn primitive_expr(&mut self, t: Token<'a>) -> Expr<'a> {
+        let id = self.get_id();
+        Expr::Primitive(PrimitiveExpr::new(id, t))
+    }
+
+    fn blank_expr(&mut self) -> Expr<'a> {
+        let id = self.get_id();
+        Expr::Blank(BlankExpr::new(id))
     }
 }
 
@@ -83,7 +107,7 @@ impl<'a> Parser<'a> {
 
         if self.eat(Token::Pipe).is_ok() {
             let regex = self.regex()?;
-            Ok(Expr::choice(term, regex))
+            Ok(self.choice_expr(term, regex))
         } else {
             Ok(term)
         }
@@ -91,7 +115,7 @@ impl<'a> Parser<'a> {
 
     fn term(&mut self) -> Result<Expr<'a>> {
         if !self.more() {
-            return Ok(Expr::blank());
+            return Ok(self.blank_expr());
         }
 
         let mut factor = None;
@@ -103,20 +127,20 @@ impl<'a> Parser<'a> {
             }
             let next_factor = self.factor()?;
             if let Some(r) = factor {
-                factor = Some(Expr::sequence(r, next_factor));
+                factor = Some(self.sequence_expr(r, next_factor));
             } else {
                 factor = Some(next_factor);
             }
         }
 
-        Ok(factor.ok_or_else(|| anyhow!("Unexpected character: {last:?}"))?)
+        factor.ok_or_else(|| anyhow!("Unexpected character: {last:?}"))
     }
 
     fn factor(&mut self) -> Result<Expr<'a>> {
         let mut base = self.base()?;
 
         while self.eat(Token::Star).is_ok() {
-            base = Expr::repetition(base);
+            base = self.repetition_expr(base);
         }
 
         Ok(base)
@@ -135,14 +159,14 @@ impl<'a> Parser<'a> {
                     self.eat(Token::BackSlash)?;
                     let escaped = self
                         .next()
-                        .ok_or(anyhow!("Ended before escaped character"))?;
-                    Ok(Expr::primitive(escaped))
+                        .ok_or_else(|| anyhow!("Ended before escaped character"))?;
+                    Ok(self.primitive_expr(escaped))
                 }
                 Token::RightParen => Err(anyhow!("Unmatched close paren")),
 
                 c => {
                     self.eat(c).unwrap();
-                    Ok(Expr::primitive(peeked))
+                    Ok(self.primitive_expr(peeked))
                 }
             }
         } else {

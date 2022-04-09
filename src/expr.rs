@@ -1,4 +1,3 @@
-use crate::gen_id;
 use crate::scanner::Token;
 
 #[derive(Debug)]
@@ -30,9 +29,9 @@ pub struct ChoiceExpr<'a> {
 }
 
 impl<'a> ChoiceExpr<'a> {
-    pub fn new(a: Expr<'a>, b: Expr<'a>) -> Self {
+    pub fn new(id: usize, a: Expr<'a>, b: Expr<'a>) -> Self {
         Self {
-            id: gen_id(),
+            id,
             a: Box::new(a),
             b: Box::new(b),
         }
@@ -47,9 +46,9 @@ pub struct SequenceExpr<'a> {
 }
 
 impl<'a> SequenceExpr<'a> {
-    pub fn new(start: Expr<'a>, end: Expr<'a>) -> Self {
+    pub fn new(id: usize, start: Expr<'a>, end: Expr<'a>) -> Self {
         Self {
-            id: gen_id(),
+            id,
             start: Box::new(start),
             end: Box::new(end),
         }
@@ -63,9 +62,9 @@ pub struct RepetitionExpr<'a> {
 }
 
 impl<'a> RepetitionExpr<'a> {
-    pub fn new(term: Expr<'a>) -> Self {
+    pub fn new(id: usize, term: Expr<'a>) -> Self {
         Self {
-            id: gen_id(),
+            id,
             term: Box::new(term),
         }
     }
@@ -78,11 +77,8 @@ pub struct PrimitiveExpr<'a> {
 }
 
 impl<'a> PrimitiveExpr<'a> {
-    pub fn new(token: Token<'a>) -> Self {
-        Self {
-            id: gen_id(),
-            token,
-        }
+    pub fn new(id: usize, token: Token<'a>) -> Self {
+        Self { id, token }
     }
 }
 
@@ -92,8 +88,8 @@ pub struct BlankExpr {
 }
 
 impl BlankExpr {
-    pub fn new() -> Self {
-        Self { id: gen_id() }
+    pub fn new(id: usize) -> Self {
+        Self { id }
     }
 }
 
@@ -127,53 +123,52 @@ impl<'a> Expr<'a> {
     /// Basically useless except for testing.
     pub fn fmt(&self, source: &str) -> String {
         // TODO: bit buggy around parentheses
-        format!(
-            "{}",
-            match &self {
-                Self::Choice(ChoiceExpr { a, b, .. }) => format!(
-                    "{}|{}",
-                    match **a {
-                        Self::Primitive(_) => a.fmt(source),
-                        _ => format!("({})", a.fmt(source)),
-                    },
-                    match **b {
-                        Self::Primitive(_) => b.fmt(source),
-                        _ => format!("({})", b.fmt(source)),
-                    },
-                ),
-                Self::Sequence(SequenceExpr { start, end, .. }) =>
-                    format!("{}{}", start.fmt(source), end.fmt(source)),
-                Self::Repetition(RepetitionExpr { term, .. }) => format!(
-                    "{}*",
-                    match **term {
-                        Self::Primitive(_) => term.fmt(source),
-                        _ => format!("({})", term.fmt(source)),
-                    },
-                ),
-                Self::Primitive(PrimitiveExpr { token, .. }) => format!("{}", token.lexeme()),
-                Self::Blank(_) => format!(""),
+
+        match &self {
+            Self::Choice(ChoiceExpr { a, b, .. }) => format!(
+                "{}|{}",
+                match **a {
+                    Self::Primitive(_) => a.fmt(source),
+                    _ => format!("({})", a.fmt(source)),
+                },
+                match **b {
+                    Self::Primitive(_) => b.fmt(source),
+                    _ => format!("({})", b.fmt(source)),
+                },
+            ),
+            Self::Sequence(SequenceExpr { start, end, .. }) => {
+                format!("{}{}", start.fmt(source), end.fmt(source))
             }
-        )
+            Self::Repetition(RepetitionExpr { term, .. }) => format!(
+                "{}*",
+                match **term {
+                    Self::Primitive(_) => term.fmt(source),
+                    _ => format!("({})", term.fmt(source)),
+                },
+            ),
+            Self::Primitive(PrimitiveExpr { token, .. }) => token.lexeme().to_string(),
+            Self::Blank(_) => String::new(),
+        }
     }
 
-    pub fn sequence(a: Expr<'a>, b: Expr<'a>) -> Self {
-        Self::Sequence(SequenceExpr::new(a, b))
+    pub fn sequence(id: usize, a: Expr<'a>, b: Expr<'a>) -> Self {
+        Self::Sequence(SequenceExpr::new(id, a, b))
     }
 
-    pub fn choice(start: Expr<'a>, end: Expr<'a>) -> Self {
-        Self::Choice(ChoiceExpr::new(start, end))
+    pub fn choice(id: usize, start: Expr<'a>, end: Expr<'a>) -> Self {
+        Self::Choice(ChoiceExpr::new(id, start, end))
     }
 
-    pub fn repetition(n: Expr<'a>) -> Self {
-        Self::Repetition(RepetitionExpr::new(n))
+    pub fn repetition(id: usize, n: Expr<'a>) -> Self {
+        Self::Repetition(RepetitionExpr::new(id, n))
     }
 
-    pub fn primitive(t: Token<'a>) -> Self {
-        Self::Primitive(PrimitiveExpr::new(t))
+    pub fn primitive(id: usize, t: Token<'a>) -> Self {
+        Self::Primitive(PrimitiveExpr::new(id, t))
     }
 
-    pub fn blank() -> Self {
-        Self::Blank(BlankExpr::new())
+    pub fn blank(id: usize) -> Self {
+        Self::Blank(BlankExpr::new(id))
     }
 }
 
