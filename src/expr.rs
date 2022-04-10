@@ -5,6 +5,7 @@ pub enum Expr<'a> {
     Choice(ChoiceExpr<'a>),
     Sequence(SequenceExpr<'a>),
     Repetition(RepetitionExpr<'a>),
+    OneOrMore(OneOrMoreExpr<'a>),
     Primitive(PrimitiveExpr<'a>),
     Digit(DigitExpr),
     Blank(BlankExpr),
@@ -16,6 +17,7 @@ impl<'a> Expr<'a> {
             Self::Choice(ChoiceExpr { id, .. }) => *id,
             Self::Sequence(SequenceExpr { id, .. }) => *id,
             Self::Repetition(RepetitionExpr { id, .. }) => *id,
+            Self::OneOrMore(OneOrMoreExpr { id, .. }) => *id,
             Self::Primitive(PrimitiveExpr { id, .. }) => *id,
             Self::Blank(BlankExpr { id, .. }) => *id,
             Self::Digit(DigitExpr { id }) => *id,
@@ -64,6 +66,21 @@ pub struct RepetitionExpr<'a> {
 }
 
 impl<'a> RepetitionExpr<'a> {
+    pub fn new(id: usize, term: Expr<'a>) -> Self {
+        Self {
+            id,
+            term: Box::new(term),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct OneOrMoreExpr<'a> {
+    id: usize,
+    pub term: Box<Expr<'a>>,
+}
+
+impl<'a> OneOrMoreExpr<'a> {
     pub fn new(id: usize, term: Expr<'a>) -> Self {
         Self {
             id,
@@ -123,7 +140,8 @@ impl<'a> Expr<'a> {
                 start._visit(f, level + 1);
                 end._visit(f, level + 1);
             }
-            Self::Repetition(RepetitionExpr { term, .. }) => {
+            Self::Repetition(RepetitionExpr { term, .. })
+            | Self::OneOrMore(OneOrMoreExpr { term, .. }) => {
                 f(self, level);
                 term._visit(f, level + 1);
             }
@@ -155,6 +173,13 @@ impl<'a> Expr<'a> {
             }
             Self::Repetition(RepetitionExpr { term, .. }) => format!(
                 "{}*",
+                match **term {
+                    Self::Primitive(_) => term.fmt(source),
+                    _ => format!("({})", term.fmt(source)),
+                },
+            ),
+            Self::OneOrMore(OneOrMoreExpr { term, .. }) => format!(
+                "{}+",
                 match **term {
                     Self::Primitive(_) => term.fmt(source),
                     _ => format!("({})", term.fmt(source)),
@@ -204,6 +229,10 @@ impl<'a> Expr<'a> {
             }
             Self::Repetition(RepetitionExpr { id, term }) => {
                 edges.push(format!("  {id} [label=\"Repetition\"]"));
+                edges.push(format!("  {id} -> {};", term.id()));
+            }
+            Self::OneOrMore(OneOrMoreExpr { id, term }) => {
+                edges.push(format!("  {id} [label=\"OneOrMore\"]"));
                 edges.push(format!("  {id} -> {};", term.id()));
             }
             Self::Primitive(PrimitiveExpr { id, token }) => {

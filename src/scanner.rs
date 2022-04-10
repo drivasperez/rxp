@@ -7,6 +7,7 @@ pub enum Token<'a> {
     RightParen,
     Pipe,
     Star,
+    Plus,
     GraphemeCluster(&'a str),
     BackSlash,
 }
@@ -21,6 +22,7 @@ impl<'a> Token<'a> {
             Self::RightParen => ")",
             Self::Pipe => "|",
             Self::Star => "*",
+            Self::Plus => "+",
             Self::GraphemeCluster(s) => s,
             Self::BackSlash => "\\",
         }
@@ -32,6 +34,7 @@ impl<'a> Token<'a> {
             Self::RightParen => "RightParen",
             Self::Pipe => "Pipe",
             Self::Star => "Star",
+            Self::Plus => "Plus",
             Self::GraphemeCluster(_) => "GraphemeCluster",
             Self::BackSlash => "BackSlash",
         }
@@ -98,6 +101,7 @@ impl<'a> Tokens<'a> {
             "(" => Token::LeftParen,
             ")" => Token::RightParen,
             "*" => Token::Star,
+            "+" => Token::Plus,
             "|" => Token::Pipe,
             "\\" => Token::BackSlash,
             other => Token::GraphemeCluster(other),

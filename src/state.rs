@@ -3,6 +3,7 @@ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use typed_arena::Arena;
 use unicode_segmentation::UnicodeSegmentation;
 
+use crate::expr::OneOrMoreExpr;
 use crate::{
     expr::{ChoiceExpr, PrimitiveExpr, RepetitionExpr, SequenceExpr},
     scanner::Token,
@@ -205,6 +206,7 @@ impl<'a> Compiler<'a> {
             Expr::Choice(e) => self.compile_choice(e),
             Expr::Sequence(e) => self.compile_sequence(e),
             Expr::Repetition(e) => self.compile_repetition(e),
+            Expr::OneOrMore(e) => self.compile_one_or_more(e),
             Expr::Primitive(e) => self.compile_literal(e),
             Expr::Digit(_) => self.compile_digit(),
         }
@@ -247,6 +249,27 @@ impl<'a> Compiler<'a> {
         frag.start.transit(None, frag.end);
         left.end.transit(None, left.start);
         left.end.transit(None, frag.end);
+
+        frag
+    }
+
+    fn compile_one_or_more(&'a self, regex: &OneOrMoreExpr<'a>) -> NfaFragment<'a> {
+        let initial = self.compile_nfa(&*regex.term);
+        let repetition = {
+            let entry = self.new_state();
+            let left = self.compile_nfa(&*regex.term);
+            let exit = self.new_state();
+            let frag = NfaFragment::new(entry, exit);
+            frag.start.transit(None, left.start);
+            frag.start.transit(None, frag.end);
+            left.end.transit(None, left.start);
+            left.end.transit(None, frag.end);
+
+            frag
+        };
+
+        let frag = NfaFragment::new(initial.start, repetition.end);
+        initial.end.transit(None, repetition.start);
 
         frag
     }
@@ -488,16 +511,16 @@ mod test {
     #[test]
     fn digit() {
         match_regex!("\\d", "0", true);
-        // match_regex!("\\d", "1", true);
-        // match_regex!("\\d", "2", true);
-        // match_regex!("\\d", "3", true);
-        // match_regex!("\\d", "4", true);
-        // match_regex!("\\d", "5", true);
-        // match_regex!("\\d", "6", true);
-        // match_regex!("\\d", "7", true);
-        // match_regex!("\\d", "8", true);
-        // match_regex!("\\d", "9", true);
-        // match_regex!("\\d", "a", false);
+        match_regex!("\\d", "1", true);
+        match_regex!("\\d", "2", true);
+        match_regex!("\\d", "3", true);
+        match_regex!("\\d", "4", true);
+        match_regex!("\\d", "5", true);
+        match_regex!("\\d", "6", true);
+        match_regex!("\\d", "7", true);
+        match_regex!("\\d", "8", true);
+        match_regex!("\\d", "9", true);
+        match_regex!("\\d", "a", false);
     }
 
     #[test]
@@ -529,6 +552,18 @@ mod test {
         match_regex!("a|b", "ca", false);
         match_regex!("hello|goodbye", "hello", true);
         match_regex!("hello|goodbye", "goodbye", true);
+    }
+
+    #[test]
+    fn one_or_more() {
+        match_regex!("a+", "", false);
+        match_regex!("a+", "a", true);
+        match_regex!("a+", "aaa", true);
+        match_regex!("(abc)+", "abc", true);
+        match_regex!("(abc)+", "abcabc", true);
+        match_regex!("a(abc)+", "a", false);
+        match_regex!("a(abc)+", "aabc", true);
+        match_regex!("a(abc)+", "aabcabc", true);
     }
 
     #[test]

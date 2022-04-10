@@ -1,5 +1,5 @@
-use expr::DigitExpr;
 use expr::{BlankExpr, ChoiceExpr, Expr, PrimitiveExpr, RepetitionExpr, SequenceExpr};
+use expr::{DigitExpr, OneOrMoreExpr};
 use scanner::Token;
 use scanner::Tokens;
 use std::iter::Peekable;
@@ -66,6 +66,11 @@ impl<'a> Parser<'a> {
     fn repetition_expr(&mut self, n: Expr<'a>) -> Expr<'a> {
         let id = self.get_id();
         Expr::Repetition(RepetitionExpr::new(id, n))
+    }
+
+    fn one_or_more_expr(&mut self, n: Expr<'a>) -> Expr<'a> {
+        let id = self.get_id();
+        Expr::OneOrMore(OneOrMoreExpr::new(id, n))
     }
 
     fn primitive_expr(&mut self, t: Token<'a>) -> Expr<'a> {
@@ -147,6 +152,10 @@ impl<'a> Parser<'a> {
 
         while self.eat(Token::Star).is_ok() {
             base = self.repetition_expr(base);
+        }
+
+        while self.eat(Token::Plus).is_ok() {
+            base = self.one_or_more_expr(base);
         }
 
         Ok(base)
