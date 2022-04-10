@@ -8,7 +8,7 @@ mod scanner;
 mod state;
 
 pub use scanner::Scanner;
-pub use state::{Compiler, DfaCompiler};
+pub use state::{Compiler, DfaCompiler, DfaState, State};
 
 use anyhow::anyhow;
 use anyhow::Result;

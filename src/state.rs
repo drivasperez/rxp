@@ -343,7 +343,19 @@ impl<'a> DfaState<'a> {
                 "circle"
             };
             let transitions = state.transitions.borrow();
-            edges.push(format!("{id} [shape={shape}]"));
+            let node_label = state
+                .nfa_states
+                .chunks(4)
+                .map(|x| {
+                    x.iter()
+                        .map(|x| x.id.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            edges.push(format!("{id} [label=\"{{{node_label}}}\" shape={shape}]"));
             for t in transitions.iter() {
                 let label = t.lexeme;
                 edges.push(format!("{id} -> {} [label=\"{label}\"]", t.state.id));

@@ -16,3 +16,10 @@ anyhow = "1.0.41"
 structopt = "0.3.21"
 unicode-segmentation = "1.7.1"
 typed-arena = "2.0.1"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "test_nfa"
+harness = false
