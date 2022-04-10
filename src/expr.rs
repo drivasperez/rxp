@@ -6,6 +6,7 @@ pub enum Expr<'a> {
     Sequence(SequenceExpr<'a>),
     Repetition(RepetitionExpr<'a>),
     Primitive(PrimitiveExpr<'a>),
+    Digit(DigitExpr),
     Blank(BlankExpr),
 }
 
@@ -17,6 +18,7 @@ impl<'a> Expr<'a> {
             Self::Repetition(RepetitionExpr { id, .. }) => *id,
             Self::Primitive(PrimitiveExpr { id, .. }) => *id,
             Self::Blank(BlankExpr { id, .. }) => *id,
+            Self::Digit(DigitExpr { id }) => *id,
         }
     }
 }
@@ -93,6 +95,17 @@ impl BlankExpr {
     }
 }
 
+#[derive(Debug)]
+pub struct DigitExpr {
+    id: usize,
+}
+
+impl DigitExpr {
+    pub fn new(id: usize) -> Self {
+        Self { id }
+    }
+}
+
 impl<'a> Expr<'a> {
     pub fn visit(&self, f: &mut dyn FnMut(&Expr<'a>, usize)) {
         self._visit(f, 0)
@@ -115,6 +128,7 @@ impl<'a> Expr<'a> {
                 term._visit(f, level + 1);
             }
             Self::Primitive(_) => f(self, level),
+            Self::Digit(_) => f(self, level),
             Self::Blank(_) => f(self, level),
         }
     }
@@ -147,6 +161,7 @@ impl<'a> Expr<'a> {
                 },
             ),
             Self::Primitive(PrimitiveExpr { token, .. }) => token.lexeme().to_string(),
+            Self::Digit(_) => "\\d".to_string(),
             Self::Blank(_) => String::new(),
         }
     }
@@ -194,6 +209,9 @@ impl<'a> Expr<'a> {
             Self::Primitive(PrimitiveExpr { id, token }) => {
                 let lexeme = token.lexeme();
                 edges.push(format!("  {id} [label=\"Primitive ({lexeme})\"]"));
+            }
+            Self::Digit(DigitExpr { id }) => {
+                edges.push(format!("  {id} [label=\"\\\\d\"]"));
             }
             Self::Blank(BlankExpr { id }) => {
                 edges.push(format!("  {id} [label=\"Blank\"]"));

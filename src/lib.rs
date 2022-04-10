@@ -1,3 +1,4 @@
+use expr::DigitExpr;
 use expr::{BlankExpr, ChoiceExpr, Expr, PrimitiveExpr, RepetitionExpr, SequenceExpr};
 use scanner::Token;
 use scanner::Tokens;
@@ -70,6 +71,11 @@ impl<'a> Parser<'a> {
     fn primitive_expr(&mut self, t: Token<'a>) -> Expr<'a> {
         let id = self.get_id();
         Expr::Primitive(PrimitiveExpr::new(id, t))
+    }
+
+    fn digit_expr(&mut self) -> Expr<'a> {
+        let id = self.get_id();
+        Expr::Digit(DigitExpr::new(id))
     }
 
     fn blank_expr(&mut self) -> Expr<'a> {
@@ -160,7 +166,11 @@ impl<'a> Parser<'a> {
                     let escaped = self
                         .next()
                         .ok_or_else(|| anyhow!("Ended before escaped character"))?;
-                    Ok(self.primitive_expr(escaped))
+
+                    match escaped.lexeme() {
+                        "d" => Ok(self.digit_expr()),
+                        _ => Ok(self.primitive_expr(escaped)),
+                    }
                 }
                 Token::RightParen => Err(anyhow!("Unmatched close paren")),
 

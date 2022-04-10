@@ -1,7 +1,7 @@
 use unicode_segmentation::Graphemes;
 use unicode_segmentation::UnicodeSegmentation;
 
-#[derive(Copy, Debug, Clone, PartialEq, Eq)]
+#[derive(Copy, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Token<'a> {
     LeftParen,
     RightParen,

@@ -9,15 +9,15 @@ use crate::{
     Expr,
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TransitionKind<'a> {
-    Epsilon,
     Literal(Token<'a>),
+    Digit,
 }
 
 #[derive(Clone, Debug)]
 pub struct Transition<'a> {
-    kind: TransitionKind<'a>,
+    kind: Option<TransitionKind<'a>>,
     state: &'a State<'a>,
 }
 
@@ -53,12 +53,12 @@ impl<'a> State<'a> {
                 }
                 for transition in transitions.iter() {
                     match transition.kind {
-                        TransitionKind::Epsilon => {
+                        None => {
                             // Epsilon transition.
                             // We need to just follow this without advancing the grapheme.
                             current_states.push_back(transition.state);
                         }
-                        TransitionKind::Literal(token) => {
+                        Some(TransitionKind::Literal(token)) => {
                             if token.lexeme() == grapheme {
                                 // If character matched, push into next_states, which will
                                 // be the queue for the next character.
@@ -66,6 +66,11 @@ impl<'a> State<'a> {
                             }
                             // Otherwise, do nothing, this branch does not match and can be
                             // dropped.
+                        }
+                        Some(TransitionKind::Digit) => {
+                            if grapheme.bytes().all(|b| b.is_ascii_digit()) {
+                                next_states.push_back(transition.state)
+                            }
                         }
                     }
                 }
@@ -104,8 +109,9 @@ impl<'a> State<'a> {
             edges.push(format!("{id} [shape={shape}]"));
             for t in transitions.iter() {
                 let label = match t.kind {
-                    TransitionKind::Literal(token) => token.lexeme(),
-                    TransitionKind::Epsilon => "\u{03B5}",
+                    None => "\u{03B5}",
+                    Some(TransitionKind::Literal(token)) => token.lexeme(),
+                    Some(TransitionKind::Digit) => "\\\\d",
                 };
                 edges.push(format!("{id} -> {} [label=\"{label}\"]", t.state.id));
                 queue.push_back(t.state);
@@ -125,7 +131,7 @@ impl<'a> State<'a> {
 }
 
 impl<'a> State<'a> {
-    fn transit(&self, kind: TransitionKind<'a>, state: &'a State<'a>) {
+    fn transit(&self, kind: Option<TransitionKind<'a>>, state: &'a State<'a>) {
         self.transitions
             .borrow_mut()
             .push(Transition { kind, state })
@@ -149,7 +155,7 @@ where
             continue;
         }
         for transition in transitions.iter() {
-            if let TransitionKind::Epsilon = transition.kind {
+            if transition.kind.is_none() {
                 // Follow any remaining epsilon transitions.
                 queue.push_back(transition.state);
             }
@@ -200,6 +206,7 @@ impl<'a> Compiler<'a> {
             Expr::Sequence(e) => self.compile_sequence(e),
             Expr::Repetition(e) => self.compile_repetition(e),
             Expr::Primitive(e) => self.compile_literal(e),
+            Expr::Digit(_) => self.compile_digit(),
         }
     }
 
@@ -207,7 +214,17 @@ impl<'a> Compiler<'a> {
         let start = self.new_state();
         let end = self.new_state();
         let frag = NfaFragment::new(start, end);
-        frag.start.transit(TransitionKind::Literal(expr.token), end);
+        frag.start
+            .transit(Some(TransitionKind::Literal(expr.token)), end);
+
+        frag
+    }
+
+    fn compile_digit(&'a self) -> NfaFragment<'a> {
+        let start = self.new_state();
+        let end = self.new_state();
+        let frag = NfaFragment::new(start, end);
+        frag.start.transit(Some(TransitionKind::Digit), end);
 
         frag
     }
@@ -216,7 +233,7 @@ impl<'a> Compiler<'a> {
         let left = self.compile_nfa(&*expr.start);
         let right = self.compile_nfa(&*expr.end);
         let frag = NfaFragment::new(left.start, right.end);
-        left.end.transit(TransitionKind::Epsilon, right.start);
+        left.end.transit(None, right.start);
 
         frag
     }
@@ -226,10 +243,10 @@ impl<'a> Compiler<'a> {
         let left = self.compile_nfa(&*regex.term);
         let exit = self.new_state();
         let frag = NfaFragment::new(entry, exit);
-        frag.start.transit(TransitionKind::Epsilon, left.start);
-        frag.start.transit(TransitionKind::Epsilon, frag.end);
-        left.end.transit(TransitionKind::Epsilon, left.start);
-        left.end.transit(TransitionKind::Epsilon, frag.end);
+        frag.start.transit(None, left.start);
+        frag.start.transit(None, frag.end);
+        left.end.transit(None, left.start);
+        left.end.transit(None, frag.end);
 
         frag
     }
@@ -241,10 +258,10 @@ impl<'a> Compiler<'a> {
         let exit = self.new_state();
 
         let frag = NfaFragment::new(entry, exit);
-        frag.start.transit(TransitionKind::Epsilon, left.start);
-        left.end.transit(TransitionKind::Epsilon, frag.end);
-        frag.start.transit(TransitionKind::Epsilon, right.start);
-        right.end.transit(TransitionKind::Epsilon, frag.end);
+        frag.start.transit(None, left.start);
+        left.end.transit(None, frag.end);
+        frag.start.transit(None, right.start);
+        right.end.transit(None, frag.end);
 
         frag
     }
@@ -252,7 +269,7 @@ impl<'a> Compiler<'a> {
 
 #[derive(Debug)]
 pub struct DfaTransition<'a> {
-    lexeme: &'a str,
+    kind: TransitionKind<'a>,
     state: &'a DfaState<'a>,
 }
 
@@ -280,24 +297,22 @@ impl<'a> DfaState<'a> {
             .any(|x| x.transitions.borrow().is_empty())
     }
 
-    fn transit(&self, lexeme: &'a str, state: &'a DfaState<'a>) {
+    fn transit(&self, kind: TransitionKind<'a>, state: &'a DfaState<'a>) {
         self.transitions
             .borrow_mut()
-            .push(DfaTransition { lexeme, state })
+            .push(DfaTransition { kind, state })
     }
 
     /// move(T, a) is the set of states to which there is a transition on input symbol `a` for some NFA
     /// state in T.
-    fn find_possible_transitions(&self) -> HashMap<&'a str, Vec<&'a State<'a>>> {
-        let mut map: HashMap<&'a str, Vec<&'a State<'a>>> = HashMap::new();
+    fn find_possible_transitions(&self) -> HashMap<TransitionKind<'a>, Vec<&'a State<'a>>> {
+        let mut map: HashMap<_, Vec<&'a State<'a>>> = HashMap::new();
 
         for state in &self.nfa_states {
             let transitions = state.transitions.borrow();
             for transition in transitions.iter() {
-                if let TransitionKind::Literal(token) = transition.kind {
-                    map.entry(token.lexeme())
-                        .or_default()
-                        .push(transition.state)
+                if let Some(kind) = transition.kind {
+                    map.entry(kind).or_default().push(transition.state)
                 }
             }
         }
@@ -313,7 +328,10 @@ impl<'a> DfaState<'a> {
                 .transitions
                 .borrow()
                 .iter()
-                .find(|transition| transition.lexeme == grapheme)
+                .find(|transition| match transition.kind {
+                    TransitionKind::Literal(token) => token.lexeme() == grapheme,
+                    TransitionKind::Digit => grapheme.bytes().all(|b| b.is_ascii_digit()),
+                })
             {
                 current_state = transition.state;
             } else {
@@ -357,7 +375,10 @@ impl<'a> DfaState<'a> {
 
             edges.push(format!("{id} [label=\"{{{node_label}}}\" shape={shape}]"));
             for t in transitions.iter() {
-                let label = t.lexeme;
+                let label = match t.kind {
+                    TransitionKind::Literal(tok) => tok.lexeme(),
+                    TransitionKind::Digit => "\\\\d",
+                };
                 edges.push(format!("{id} -> {} [label=\"{label}\"]", t.state.id));
                 queue.push_back(t.state);
             }
@@ -465,6 +486,21 @@ mod test {
     }
 
     #[test]
+    fn digit() {
+        match_regex!("\\d", "0", true);
+        // match_regex!("\\d", "1", true);
+        // match_regex!("\\d", "2", true);
+        // match_regex!("\\d", "3", true);
+        // match_regex!("\\d", "4", true);
+        // match_regex!("\\d", "5", true);
+        // match_regex!("\\d", "6", true);
+        // match_regex!("\\d", "7", true);
+        // match_regex!("\\d", "8", true);
+        // match_regex!("\\d", "9", true);
+        // match_regex!("\\d", "a", false);
+    }
+
+    #[test]
     fn sequence() {
         match_regex!("ab", "ab", true);
         match_regex!("ab", "ba", false);
@@ -497,8 +533,9 @@ mod test {
 
     #[test]
     fn mixed() {
-        match_regex!("(hello)*|goodbye", "hellohellohellohello", true);
+        match_regex!("(hello)*|g\\dodbye", "hellohellohellohello", true);
         match_regex!("(hello)*|goodbye", "hellogoodbyehellohello", false);
         match_regex!("((hello)*|goodbye)*", "hellogoodbyehellohello", true);
+        match_regex!("((hello)*|g\\dodbye)*", "hellog3odbyehellohello", true);
     }
 }
