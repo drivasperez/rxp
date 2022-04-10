@@ -96,6 +96,11 @@ impl<'a> State<'a> {
 
         queue.push_back(self);
 
+        edges.push(format!(
+            "START [label=\"\", shape=none, height=0, width=0]\nSTART -> {}",
+            self.id
+        ));
+
         while let Some(state) = queue.pop_front() {
             if visited.contains(&state.id) {
                 continue;
@@ -372,6 +377,11 @@ impl<'a> DfaState<'a> {
         let mut visited = HashSet::new();
 
         queue.push_back(self);
+
+        edges.push(format!(
+            "START [label=\"\", shape=none, height=0, width=0]\nSTART -> {}",
+            self.id
+        ));
 
         while let Some(state) = queue.pop_front() {
             if visited.contains(&state.id) {
