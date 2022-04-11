@@ -140,7 +140,7 @@ impl<'a> State<'a> {
     fn transit(&self, kind: Option<TransitionKind<'a>>, state: &'a State<'a>) {
         self.transitions
             .borrow_mut()
-            .push(Transition { kind, state })
+            .push(Transition { kind, state });
     }
 }
 
@@ -236,11 +236,16 @@ impl<'a> Compiler<'a> {
         frag
     }
 
+    // left.start -a-> left.end -eps-> new -eps-> right.start -b-> right.end
+    // left.start -a-> right.start -b-> right.end
+    // left.start -a-> right.start -b-> right.end -eps->
     fn compile_sequence(&'a self, expr: &SequenceExpr<'a>) -> NfaFragment<'a> {
         let left = self.compile_nfa(&*expr.start);
         let right = self.compile_nfa(&*expr.end);
-        let frag = NfaFragment::new(left.start, right.end);
+
         left.end.transit(None, right.start);
+
+        let frag = NfaFragment::new(left.start, right.end);
 
         frag
     }
