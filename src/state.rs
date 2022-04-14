@@ -207,7 +207,7 @@ impl<'a> Compiler<'a> {
 
     fn compile_nfa(&'a self, expr: &Expr<'a>) -> NfaFragment<'a> {
         match &expr {
-            Expr::Blank(_) => panic!(),
+            Expr::Blank(_) => self.compile_blank(),
             Expr::Choice(e) => self.compile_choice(e),
             Expr::Sequence(e) => self.compile_sequence(e),
             Expr::Repetition(e) => self.compile_repetition(e),
@@ -217,6 +217,14 @@ impl<'a> Compiler<'a> {
         }
     }
 
+    fn compile_blank(&'a self) -> NfaFragment<'a> {
+        let start = self.new_state();
+        let end = self.new_state();
+        let frag = NfaFragment::new(start, end);
+        frag.start.transit(None, end);
+
+        frag
+    }
     fn compile_literal(&'a self, expr: &PrimitiveExpr<'a>) -> NfaFragment<'a> {
         let start = self.new_state();
         let end = self.new_state();
