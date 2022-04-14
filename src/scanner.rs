@@ -1,3 +1,4 @@
+use crate::graphviz::{DiGraph, RankDir, Style};
 use unicode_segmentation::Graphemes;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -65,29 +66,24 @@ impl<'a> Scanner<'a> {
 
 impl Scanner<'_> {
     pub fn graphviz(&self, graph_name: &str) -> String {
-        let mut edges = Vec::new();
+        let mut digraph = DiGraph::new(graph_name);
+        digraph.rankdir(RankDir::LeftRight);
 
         for (i, token) in self.tokens().enumerate() {
             if let Token::GraphemeCluster(_) = &token {
                 let lexeme = token.lexeme();
-                edges.push(format!("  {i} [label=\"{lexeme}\"]"));
+                digraph.vertex(i, Style::new().label(lexeme));
             } else {
                 let kind = &token.kind();
-                edges.push(format!("  {i} [label={kind:?}]"));
+                digraph.vertex(i, Style::new().label(kind));
             }
 
             if i != 0 {
-                edges.push(format!("  {} -> {};", i - 1, i))
+                digraph.edge(i - 1, i, None);
             }
         }
 
-        let edges = edges.join("\n");
-        format!(
-            "digraph {graph_name} {{\n\
-                rankdir=LR;\n
-            {edges}\n\
-            }}"
-        )
+        digraph.to_string()
     }
 }
 

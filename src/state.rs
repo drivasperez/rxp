@@ -1,3 +1,4 @@
+use crate::graphviz::{DiGraph, RankDir, Shape, Style};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use typed_arena::Arena;
@@ -89,17 +90,24 @@ impl<'a> State<'a> {
     }
 
     pub fn graphviz(&self, graph_name: &str) -> String {
-        let mut edges = Vec::new();
+        let mut digraph = DiGraph::new(graph_name);
+        digraph.rankdir(RankDir::LeftRight);
 
         let mut queue = VecDeque::new();
         let mut visited = HashSet::new();
 
         queue.push_back(self);
 
-        edges.push(format!(
-            "START [label=\"\", shape=none, height=0, width=0]\nSTART -> {}",
-            self.id
-        ));
+        digraph
+            .vertex(
+                "START",
+                Style::new()
+                    .label("")
+                    .shape(Shape::None)
+                    .height(0.0)
+                    .width(0.0),
+            )
+            .edge("START", self.id, None);
 
         while let Some(state) = queue.pop_front() {
             if visited.contains(&state.id) {
@@ -108,31 +116,24 @@ impl<'a> State<'a> {
             let id = state.id;
             let transitions = state.transitions.borrow();
             let shape = if transitions.is_empty() {
-                "doublecircle"
+                Shape::DoubleCircle
             } else {
-                "circle"
+                Shape::Circle
             };
-            edges.push(format!("{id} [shape={shape}]"));
+            digraph.vertex(id, Style::new().shape(shape));
             for t in transitions.iter() {
                 let label = match t.kind {
                     None => "\u{03B5}",
                     Some(TransitionKind::Literal(token)) => token.lexeme(),
                     Some(TransitionKind::Digit) => "\\\\d",
                 };
-                edges.push(format!("{id} -> {} [label=\"{label}\"]", t.state.id));
+                digraph.edge(id, t.state.id, Style::new().label(label));
                 queue.push_back(t.state);
             }
             visited.insert(state.id);
         }
 
-        let edges = edges.join("\n");
-
-        format!(
-            "digraph {graph_name} {{\n\
-                rankdir=LR;\n\
-            {edges}\n\
-            }}"
-        )
+        digraph.to_string()
     }
 }
 
@@ -254,9 +255,7 @@ impl<'a> Compiler<'a> {
 
         left.end.transit(None, right.start);
 
-        let frag = NfaFragment::new(left.start, right.end);
-
-        frag
+        NfaFragment::new(left.start, right.end)
     }
 
     fn compile_repetition(&'a self, regex: &RepetitionExpr<'a>) -> NfaFragment<'a> {
@@ -385,17 +384,24 @@ impl<'a> DfaState<'a> {
     }
 
     pub fn graphviz(&self, graph_name: &str) -> String {
-        let mut edges = Vec::new();
+        let mut digraph = DiGraph::new(graph_name);
+        digraph.rankdir(RankDir::LeftRight);
 
         let mut queue = VecDeque::new();
         let mut visited = HashSet::new();
 
         queue.push_back(self);
 
-        edges.push(format!(
-            "START [label=\"\", shape=none, height=0, width=0]\nSTART -> {}",
-            self.id
-        ));
+        digraph
+            .vertex(
+                "START",
+                Style::new()
+                    .label("")
+                    .shape(Shape::None)
+                    .height(0.0)
+                    .width(0.0),
+            )
+            .edge("START", self.id, None);
 
         while let Some(state) = queue.pop_front() {
             if visited.contains(&state.id) {
@@ -403,10 +409,11 @@ impl<'a> DfaState<'a> {
             }
             let id = state.id;
             let shape = if state.is_accepting() {
-                "doublecircle"
+                Shape::DoubleCircle
             } else {
-                "circle"
+                Shape::Circle
             };
+
             let transitions = state.transitions.borrow();
             let node_label = state
                 .nfa_states
@@ -420,26 +427,22 @@ impl<'a> DfaState<'a> {
                 .collect::<Vec<_>>()
                 .join("\n");
 
-            edges.push(format!("{id} [label=\"{{{node_label}}}\" shape={shape}]"));
+            digraph.vertex(
+                id,
+                Style::new().label(format!("{{{node_label}}}")).shape(shape),
+            );
             for t in transitions.iter() {
                 let label = match t.kind {
                     TransitionKind::Literal(tok) => tok.lexeme(),
                     TransitionKind::Digit => "\\\\d",
                 };
-                edges.push(format!("{id} -> {} [label=\"{label}\"]", t.state.id));
+                digraph.edge(id, t.state.id, Style::new().label(label));
                 queue.push_back(t.state);
             }
             visited.insert(state.id);
         }
 
-        let edges = edges.join("\n");
-
-        format!(
-            "digraph {graph_name} {{\n\
-                rankdir=LR;\n\
-            {edges}\n\
-            }}"
-        )
+        digraph.to_string()
     }
 }
 

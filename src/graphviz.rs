@@ -1,10 +1,12 @@
 #[derive(Copy, Clone, Debug)]
 pub enum Shape {
+    None,
     Box,
     Polygon,
     Ellipse,
     Oval,
     Circle,
+    DoubleCircle,
     Point,
     Egg,
     Triangle,
@@ -20,11 +22,13 @@ impl std::fmt::Display for Shape {
             f,
             "{}",
             match self {
+                Self::None => "none",
                 Self::Box => "box",
                 Self::Polygon => "polygon",
                 Self::Ellipse => "ellipse",
                 Self::Oval => "oval",
                 Self::Circle => "circle",
+                Self::DoubleCircle => "doublecircle",
                 Self::Point => "point",
                 Self::Egg => "egg",
                 Self::Triangle => "triangle",
@@ -54,7 +58,7 @@ impl std::fmt::Display for Style {
 
         let s = [label, shape, height, width]
             .into_iter()
-            .filter_map(|s| s)
+            .flatten()
             .collect::<Vec<_>>()
             .join(", ");
 
@@ -67,8 +71,8 @@ impl Style {
         Self::default()
     }
 
-    pub fn label(mut self, label: impl Into<String>) -> Self {
-        self.label = Some(label.into());
+    pub fn label(mut self, label: impl ToString) -> Self {
+        self.label = Some(label.to_string());
         self
     }
 
@@ -129,7 +133,7 @@ impl std::fmt::Display for Edge {
 }
 
 #[derive(Debug, Copy, Clone)]
-enum RankDir {
+pub enum RankDir {
     TopBottom,
     BottomTop,
     LeftRight,
@@ -160,23 +164,23 @@ pub struct DiGraph {
 }
 
 impl DiGraph {
-    pub fn new(name: impl Into<String>) -> Self {
+    pub fn new(name: impl ToString) -> Self {
         Self {
-            name: name.into(),
+            name: name.to_string(),
             vertices: Vec::default(),
             rankdir: None,
             edges: Vec::default(),
         }
     }
 
-    pub fn rankdir(mut self, dir: RankDir) -> Self {
+    pub fn rankdir(&mut self, dir: RankDir) -> &mut Self {
         self.rankdir = Some(dir);
         self
     }
 
-    pub fn vertex(mut self, id: impl Into<String>, style: impl Into<Option<Style>>) -> Self {
+    pub fn vertex(&mut self, id: impl ToString, style: impl Into<Option<Style>>) -> &mut Self {
         self.vertices.push(Vertex {
-            id: id.into(),
+            id: id.to_string(),
             style: style.into().unwrap_or_default(),
         });
 
@@ -184,14 +188,14 @@ impl DiGraph {
     }
 
     pub fn edge(
-        mut self,
-        from: impl Into<String>,
-        to: impl Into<String>,
+        &mut self,
+        from: impl ToString,
+        to: impl ToString,
         style: impl Into<Option<Style>>,
-    ) -> Self {
+    ) -> &mut Self {
         self.edges.push(Edge {
-            from: from.into(),
-            to: to.into(),
+            from: from.to_string(),
+            to: to.to_string(),
             style: style.into().unwrap_or_default(),
         });
 
@@ -219,7 +223,7 @@ impl std::fmt::Display for DiGraph {
             f,
             "digraph {} {{ 
         {}
-        {vertices}\
+        {vertices}\n
         {edges}\
         }}",
             self.name,

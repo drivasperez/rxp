@@ -1,3 +1,4 @@
+use crate::graphviz::{DiGraph, Style};
 use crate::scanner::Token;
 
 #[derive(Debug)]
@@ -214,45 +215,43 @@ impl<'a> Expr<'a> {
 
 impl<'a> Expr<'a> {
     pub fn graphviz(&'a self, graph_name: &str) -> String {
-        let mut edges = Vec::new();
+        let mut digraph = DiGraph::new(graph_name);
 
         self.visit(&mut |r, _level| match &r {
             Self::Choice(ChoiceExpr { id, a, b }) => {
-                edges.push(format!("  {id} [label=\"Choice\"]"));
-                edges.push(format!("  {id} -> {};", a.id()));
-                edges.push(format!("  {id} -> {};", b.id()));
+                digraph
+                    .vertex(id, Style::new().label("Choice"))
+                    .edge(id, a.id(), None)
+                    .edge(id, b.id(), None);
             }
             Self::Sequence(SequenceExpr { id, start, end }) => {
-                edges.push(format!("  {id} [label=\"Sequence\"]"));
-                edges.push(format!("  {id} -> {};", start.id()));
-                edges.push(format!("  {id} -> {};", end.id()));
+                digraph
+                    .vertex(id, Style::new().label("Sequence"))
+                    .edge(id, start.id(), None)
+                    .edge(id, end.id(), None);
             }
             Self::Repetition(RepetitionExpr { id, term }) => {
-                edges.push(format!("  {id} [label=\"Repetition\"]"));
-                edges.push(format!("  {id} -> {};", term.id()));
+                digraph
+                    .vertex(id, Style::new().label("Repetition"))
+                    .edge(id, term.id(), None);
             }
             Self::OneOrMore(OneOrMoreExpr { id, term }) => {
-                edges.push(format!("  {id} [label=\"OneOrMore\"]"));
-                edges.push(format!("  {id} -> {};", term.id()));
+                digraph
+                    .vertex(id, Style::new().label("OneOrMore"))
+                    .edge(id, term.id(), None);
             }
             Self::Primitive(PrimitiveExpr { id, token }) => {
                 let lexeme = token.lexeme();
-                edges.push(format!("  {id} [label=\"Primitive ({lexeme})\"]"));
+                digraph.vertex(id, Style::new().label(format!("Primitive ({lexeme})")));
             }
             Self::Digit(DigitExpr { id }) => {
-                edges.push(format!("  {id} [label=\"\\\\d\"]"));
+                digraph.vertex(id, Style::new().label("\\\\d"));
             }
             Self::Blank(BlankExpr { id }) => {
-                edges.push(format!("  {id} [label=\"Blank\"]"));
+                digraph.vertex(id, Style::new().label("Blank"));
             }
         });
 
-        let edges = edges.join("\n");
-
-        format!(
-            "digraph {graph_name} {{\n\
-            {edges}\n\
-            }}"
-        )
+        digraph.to_string()
     }
 }
