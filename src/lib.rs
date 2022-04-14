@@ -5,6 +5,7 @@ use scanner::Tokens;
 use std::iter::Peekable;
 
 mod expr;
+mod graphviz;
 mod scanner;
 mod state;
 
