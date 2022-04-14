@@ -11,8 +11,7 @@ mod state;
 pub use scanner::Scanner;
 pub use state::{Compiler, DfaCompiler, DfaState, State};
 
-use anyhow::anyhow;
-use anyhow::Result;
+use color_eyre::eyre::{eyre, Result};
 
 // Grammar:
 //
@@ -100,8 +99,8 @@ impl<'a> Parser<'a> {
                 let next = self.input.next().unwrap();
                 Ok(next)
             }
-            Some(other) => Err(anyhow!("Expected {expected:?}, got {other:?}")),
-            None => Err(anyhow!("Expected {expected:?}, string empty")),
+            Some(other) => Err(eyre!("Expected {expected:?}, got {other:?}")),
+            None => Err(eyre!("Expected {expected:?}, string empty")),
         }
     }
 
@@ -132,8 +131,14 @@ impl<'a> Parser<'a> {
         let mut factor = None;
         let mut last = None;
         while let Some(token) = self.peek() {
-            if matches!(token, Token::RightParen | Token::Pipe) {
+            if matches!(token, Token::RightParen) {
                 last = Some(token);
+                break;
+            }
+            if self.eat(Token::Pipe).is_ok() {
+                let regex = self.regex()?;
+                let blank = self.blank_expr();
+                factor = Some(self.choice_expr(factor.unwrap_or(blank), regex));
                 break;
             }
             let next_factor = self.factor()?;
@@ -144,7 +149,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        factor.ok_or_else(|| anyhow!("Unexpected character: {last:?}"))
+        factor.ok_or_else(|| eyre!("Unexpected character: {last:?}"))
     }
 
     fn factor(&mut self) -> Result<Expr<'a>> {
@@ -174,14 +179,14 @@ impl<'a> Parser<'a> {
                     self.eat(Token::BackSlash)?;
                     let escaped = self
                         .next()
-                        .ok_or_else(|| anyhow!("Ended before escaped character"))?;
+                        .ok_or_else(|| eyre!("Ended before escaped character"))?;
 
                     match escaped.lexeme() {
                         "d" => Ok(self.digit_expr()),
                         _ => Ok(self.primitive_expr(escaped)),
                     }
                 }
-                Token::RightParen => Err(anyhow!("Unmatched close paren")),
+                Token::RightParen => Err(eyre!("Unmatched close paren")),
 
                 c => {
                     self.eat(c).unwrap();
@@ -189,7 +194,7 @@ impl<'a> Parser<'a> {
                 }
             }
         } else {
-            Err(anyhow!("Input was empty!"))
+            Err(eyre!("Input was empty!"))
         }
     }
 }

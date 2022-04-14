@@ -12,10 +12,10 @@ keywords = ["regex"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.41"
 structopt = "0.3.21"
 unicode-segmentation = "1.7.1"
 typed-arena = "2.0.1"
+color-eyre = "0.5"
 
 [dev-dependencies]
 criterion = "0.3"

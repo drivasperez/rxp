@@ -1,4 +1,5 @@
-use anyhow::anyhow;
+use color_eyre::eyre::{eyre, Error, Result};
+
 use std::str::FromStr;
 
 use rxp::{Compiler, DfaCompiler, Parser, Scanner};
@@ -13,7 +14,7 @@ enum Phase {
 }
 
 impl FromStr for Phase {
-    type Err = anyhow::Error;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, <Self as FromStr>::Err> {
         match s.to_lowercase().as_str() {
@@ -21,7 +22,7 @@ impl FromStr for Phase {
             "ast" => Ok(Self::Ast),
             "nfa" => Ok(Self::Nfa),
             "dfa" => Ok(Self::Dfa),
-            other => Err(anyhow!("Expected scanner, dfa, nfa or parser, got {other}")),
+            other => Err(eyre!("Expected scanner, dfa, nfa or parser, got {other}")),
         }
     }
 }
@@ -49,11 +50,7 @@ enum Opt {
     },
 }
 
-fn test_expression(
-    regex_string: &str,
-    test_string: &str,
-    construct_dfa: bool,
-) -> anyhow::Result<bool> {
+fn test_expression(regex_string: &str, test_string: &str, construct_dfa: bool) -> Result<bool> {
     let scanner = Scanner::new(regex_string);
     let mut parser = Parser::new(&scanner);
     let regex = parser.parse()?;
@@ -71,14 +68,14 @@ fn test_expression(
     Ok(res)
 }
 
-fn visualise_expression(regex_string: &str, phase: Phase) -> anyhow::Result<String> {
+fn visualise_expression(regex_string: &str, phase: Phase) -> Result<String> {
     let scanner = Scanner::new(regex_string);
     if phase == Phase::Tokens {
         return Ok(scanner.graphviz("Scanner"));
     }
 
     let mut parser = Parser::new(&scanner);
-    let regex = parser.parse().unwrap();
+    let regex = parser.parse()?;
 
     if phase == Phase::Ast {
         return Ok(regex.graphviz("Parser"));
@@ -98,10 +95,11 @@ fn visualise_expression(regex_string: &str, phase: Phase) -> anyhow::Result<Stri
         return Ok(dfa.graphviz("Dfa"));
     }
 
-    Err(anyhow!("Haven't implemented that yet."))
+    Err(eyre!("Haven't implemented that yet."))
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<()> {
+    color_eyre::install()?;
     match Opt::from_args() {
         Opt::Dot { phase, regex } => println!("{}", visualise_expression(&regex, phase)?),
         Opt::Test {

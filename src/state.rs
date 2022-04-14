@@ -225,6 +225,7 @@ impl<'a> Compiler<'a> {
 
         frag
     }
+
     fn compile_literal(&'a self, expr: &PrimitiveExpr<'a>) -> NfaFragment<'a> {
         let start = self.new_state();
         let end = self.new_state();
@@ -575,6 +576,9 @@ mod test {
         match_regex!("a|b", "ca", false);
         match_regex!("hello|goodbye", "hello", true);
         match_regex!("hello|goodbye", "goodbye", true);
+        match_regex!("hello|", "hello", true);
+        match_regex!("hello|", "", true);
+        match_regex!("|", "", true);
     }
 
     #[test]
