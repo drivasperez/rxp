@@ -8,9 +8,11 @@ mod expr;
 pub mod graphviz;
 mod scanner;
 mod state;
+mod vm;
 
 pub use scanner::Scanner;
 pub use state::{Compiler, DfaCompiler, DfaState, State};
+pub use vm::VirtualMachine;
 
 use color_eyre::eyre::{eyre, Result};
 
