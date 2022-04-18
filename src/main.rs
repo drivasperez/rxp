@@ -73,7 +73,7 @@ fn test_expression(regex_string: &str, test_string: &str, construct_dfa: bool) -
     Ok(res)
 }
 
-fn test_vm_expression(regex_string: &str, test_string: &str) -> Result<bool> {
+fn test_vm_expression(regex_string: &str, _test_string: &str) -> Result<bool> {
     let scanner = Scanner::new(regex_string);
     let mut parser = Parser::new(&scanner);
     let regex = parser.parse()?;

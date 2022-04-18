@@ -14,7 +14,7 @@ enum RelInstruction<'a> {
 
 #[derive(Debug)]
 enum InstrNode<T: std::fmt::Debug> {
-    Instr(T),
+    Instr(usize, T),
     Block(InstrTree<T>),
 }
 
@@ -28,7 +28,7 @@ pub struct InstrTree<T: std::fmt::Debug> {
 impl<T: std::fmt::Debug> InstrTree<T> {
     pub fn len(&self) -> usize {
         self.instrs.iter().fold(0, |acc, next| match next {
-            InstrNode::Instr(_) => acc + 1,
+            InstrNode::Instr(_, _) => acc + 1,
             InstrNode::Block(block) => acc + block.len(),
         })
     }
@@ -36,7 +36,7 @@ impl<T: std::fmt::Debug> InstrTree<T> {
     pub fn flatten(self) -> Vec<T> {
         self.instrs.into_iter().fold(Vec::new(), |mut acc, next| {
             match next {
-                InstrNode::Instr(instr) => acc.push(instr),
+                InstrNode::Instr(_line_number, instr) => acc.push(instr),
                 InstrNode::Block(block) => acc.extend(block.flatten()),
             };
             acc
@@ -104,7 +104,9 @@ impl<T: std::fmt::Debug + std::fmt::Display> InstrTree<T> {
             .instrs
             .iter()
             .map(|inst| match inst {
-                InstrNode::Instr(instr) => graphviz_instr_row(0, &instr.to_string()),
+                InstrNode::Instr(line_num, instr) => {
+                    graphviz_instr_row(*line_num, &instr.to_string())
+                }
                 InstrNode::Block(block) => graphviz_block_row(block.id, &block.title),
             })
             .collect::<Vec<_>>()
@@ -151,36 +153,59 @@ impl<T: std::fmt::Debug + std::fmt::Display> InstrTree<T> {
     }
 }
 
-fn make_abs_tree<'a>(
-    tree: InstrTree<RelInstruction<'a>>,
-    start: usize,
-) -> InstrTree<Instruction<'a>> {
+fn correct_line_numbers<'a, T: std::fmt::Debug>(tree: InstrTree<T>, start: usize) -> InstrTree<T> {
     InstrTree {
         id: tree.id,
         title: tree.title,
         instrs: tree
             .instrs
             .into_iter()
-            .enumerate()
-            .map(|(i, node)| (i + start, node))
-            .map(|(i, node)| {
-                dbg!(i, &node);
-                match node {
-                    InstrNode::Instr(instr) => InstrNode::Instr(match instr {
-                        RelInstruction::Char(c) => Instruction::Char(c),
-                        RelInstruction::Digit => Instruction::Digit,
-                        RelInstruction::Jmp(offset) => {
-                            let dst = i as isize + offset;
-                            Instruction::Jmp(dst as usize)
-                        }
-                        RelInstruction::Split(o1, o2) => {
-                            let d1 = i as isize + o1;
-                            let d2 = i as isize + o2;
+            .fold(
+                (Vec::new(), start),
+                |(mut acc, line_num), next| match next {
+                    InstrNode::Instr(old_ln, t) => {
+                        acc.push(InstrNode::Instr(old_ln + line_num, t));
+                        (acc, line_num + 1)
+                    }
+                    InstrNode::Block(block) => {
+                        let new_len = line_num + block.len();
+                        acc.push(InstrNode::Block(correct_line_numbers(block, line_num)));
+                        (acc, new_len)
+                    }
+                },
+            )
+            .0,
+    }
+}
 
-                            Instruction::Split(d1 as usize, d2 as usize)
-                        }
-                    }),
-                    InstrNode::Block(block) => InstrNode::Block(make_abs_tree(block, i)),
+fn make_abs_tree<'a>(tree: InstrTree<RelInstruction<'a>>) -> InstrTree<Instruction<'a>> {
+    InstrTree {
+        id: tree.id,
+        title: tree.title,
+        instrs: tree
+            .instrs
+            .into_iter()
+            .map(|node| {
+                match node {
+                    InstrNode::Instr(line_num, instr) => InstrNode::Instr(
+                        // TODO: Use line_num here instead of i
+                        line_num,
+                        match instr {
+                            RelInstruction::Char(c) => Instruction::Char(c),
+                            RelInstruction::Digit => Instruction::Digit,
+                            RelInstruction::Jmp(offset) => {
+                                let dst = line_num as isize + offset;
+                                Instruction::Jmp(dst as usize)
+                            }
+                            RelInstruction::Split(o1, o2) => {
+                                let d1 = line_num as isize + o1;
+                                let d2 = line_num as isize + o2;
+
+                                Instruction::Split(d1 as usize, d2 as usize)
+                            }
+                        },
+                    ),
+                    InstrNode::Block(block) => InstrNode::Block(make_abs_tree(block)),
                 }
             })
             .collect(),
@@ -188,14 +213,18 @@ fn make_abs_tree<'a>(
 }
 
 pub fn vm_graphviz(expr: &Expr) -> String {
-    let tree = make_abs_tree(_compile(expr), 0);
+    let tree = _compile(expr);
+    let tree = correct_line_numbers(tree, 0);
+    let tree = make_abs_tree(tree);
 
     tree.graphviz("Tree")
 }
 
 pub(super) fn compile<'a>(expr: &'a Expr<'a>) -> Vec<Instruction<'a>> {
-    let mut instrs = make_abs_tree(_compile(expr), 0).flatten();
-    println!("{instrs:?}");
+    let tree = _compile(expr);
+    let tree = correct_line_numbers(tree, 0);
+    let tree = make_abs_tree(tree);
+    let mut instrs = tree.flatten();
     // let mut instrs: Vec<Instruction> = _compile(expr)
     //     .flatten()
     //     .iter()
@@ -238,7 +267,7 @@ fn compile_primitive<'a>(exp: &'a PrimitiveExpr<'a>) -> InstrTree<RelInstruction
     InstrTree {
         id: *id,
         title: "Primitive".to_string(),
-        instrs: vec![InstrNode::Instr(RelInstruction::Char(token.lexeme()))],
+        instrs: vec![InstrNode::Instr(0, RelInstruction::Char(token.lexeme()))],
     }
 }
 
@@ -247,7 +276,7 @@ fn compile_digit<'a>(exp: &'a DigitExpr) -> InstrTree<RelInstruction<'a>> {
     InstrTree {
         id: *id,
         title: "digit".to_string(),
-        instrs: vec![InstrNode::Instr(RelInstruction::Digit)],
+        instrs: vec![InstrNode::Instr(0, RelInstruction::Digit)],
     }
 }
 
@@ -277,14 +306,15 @@ fn compile_choice_expr<'a>(exp: &'a ChoiceExpr<'a>) -> InstrTree<RelInstruction<
     // B instr
     // MATCH
 
-    instrs.push(InstrNode::Instr(RelInstruction::Split(
-        1,
-        a_instrs.len() as isize + 2,
-    )));
+    instrs.push(InstrNode::Instr(
+        0,
+        RelInstruction::Split(0, a_instrs.len() as isize + 2),
+    ));
     instrs.push(InstrNode::Block(a_instrs));
-    instrs.push(InstrNode::Instr(RelInstruction::Jmp(
-        b_instrs.len() as isize + 1,
-    )));
+    instrs.push(InstrNode::Instr(
+        1,
+        RelInstruction::Jmp(b_instrs.len() as isize + 1),
+    ));
     instrs.push(InstrNode::Block(b_instrs));
 
     InstrTree {
@@ -297,7 +327,7 @@ fn compile_choice_expr<'a>(exp: &'a ChoiceExpr<'a>) -> InstrTree<RelInstruction<
 fn compile_sequence<'a>(exp: &'a SequenceExpr<'a>) -> InstrTree<RelInstruction<'a>> {
     let SequenceExpr { id, start, end } = exp;
 
-    let mut start_instrs = _compile(start);
+    let start_instrs = _compile(start);
     let end_instrs = _compile(end);
 
     InstrTree {
@@ -319,9 +349,9 @@ fn compile_repetition<'a>(exp: &'a RepetitionExpr<'a>) -> InstrTree<RelInstructi
     // MATCH
 
     let mut instrs = Vec::new();
-    instrs.push(InstrNode::Instr(RelInstruction::Split(1, stride + 1)));
+    instrs.push(InstrNode::Instr(0, RelInstruction::Split(1, stride + 1)));
     instrs.push(InstrNode::Block(term_instrs));
-    instrs.push(InstrNode::Instr(RelInstruction::Jmp(-stride)));
+    instrs.push(InstrNode::Instr(1, RelInstruction::Jmp(-stride)));
 
     InstrTree {
         id: *id,
@@ -342,7 +372,7 @@ fn compile_oneormore<'a>(exp: &'a OneOrMoreExpr<'a>) -> InstrTree<RelInstruction
 
     let mut instrs = Vec::new();
     instrs.push(InstrNode::Block(term_instrs));
-    instrs.push(InstrNode::Instr(RelInstruction::Split(-stride, 1)));
+    instrs.push(InstrNode::Instr(0, RelInstruction::Split(-stride, 1)));
 
     InstrTree {
         id: *id,
@@ -364,8 +394,6 @@ mod test {
         let regex = parser.parse().unwrap();
 
         let instrs = compile(&regex);
-
-        println!("Oh no!");
 
         assert_eq!(
             instrs,
