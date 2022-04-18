@@ -4,6 +4,7 @@ use crate::expr::{
     SequenceExpr,
 };
 
+#[derive(Debug)]
 enum RelInstruction<'a> {
     Char(&'a str),
     Digit,
@@ -11,17 +12,20 @@ enum RelInstruction<'a> {
     Split(isize, isize),
 }
 
-enum InstrNode<T> {
+#[derive(Debug)]
+enum InstrNode<T: std::fmt::Debug> {
     Instr(T),
     Block(InstrTree<T>),
 }
 
-struct InstrTree<T> {
+#[derive(Debug)]
+pub struct InstrTree<T: std::fmt::Debug> {
     id: usize,
+    title: String,
     instrs: Vec<InstrNode<T>>,
 }
 
-impl<T> InstrTree<T> {
+impl<T: std::fmt::Debug> InstrTree<T> {
     pub fn len(&self) -> usize {
         self.instrs.iter().fold(0, |acc, next| match next {
             InstrNode::Instr(_) => acc + 1,
@@ -40,26 +44,177 @@ impl<T> InstrTree<T> {
     }
 }
 
-pub(super) fn compile<'a>(expr: &'a Expr<'a>) -> Vec<Instruction<'a>> {
-    let mut instrs: Vec<Instruction> = _compile(expr)
-        .flatten()
-        .iter()
-        .enumerate()
-        .map(|(i, instr)| match instr {
-            RelInstruction::Char(c) => Instruction::Char(c),
-            RelInstruction::Digit => Instruction::Digit,
-            RelInstruction::Jmp(offset) => {
-                let addr = (i as isize) + offset;
-                Instruction::Jmp(addr as usize)
-            }
-            RelInstruction::Split(o1, o2) => {
-                let a1 = (i as isize) + o1;
-                let a2 = (i as isize) + o2;
+fn graphviz_instr_row(line_number: usize, value: &str) -> String {
+    format!(
+        r#"
+    <tr>
+      <td port="{line_number}" colspan="1">{line_number}</td>
+      <td colspan="5">{value}</td>
+    </tr>
+    "#
+    )
+}
 
-                Instruction::Split(a1 as usize, a2 as usize)
+fn graphviz_block_row(id: usize, title: &str) -> String {
+    format!(
+        r#"
+    <tr>
+      <td height="50" port="out{id}" colspan="6">{title}</td>
+    </tr>
+    "#
+    )
+}
+
+impl<T: std::fmt::Debug + std::fmt::Display> InstrTree<T> {
+    pub fn graphviz(&self, graph_name: &str) -> String {
+        let (tables, edges): (Vec<_>, Vec<_>) = self.all_graphviz_tables().into_iter().unzip();
+
+        let tables = tables.join("\n");
+        let edges = edges.join("\n");
+
+        format!(
+            r#"
+        digraph {graph_name} {{
+            rankdir=LR
+            {tables}
+            {edges}
+        }}
+        "#
+        )
+    }
+
+    fn all_graphviz_tables(&self) -> Vec<(String, String)> {
+        let mut tables = Vec::new();
+
+        tables.push(self.node());
+        for instr in &self.instrs {
+            if let InstrNode::Block(block) = instr {
+                tables.push(block.node());
+                tables.extend(block.all_graphviz_tables());
             }
-        })
-        .collect();
+        }
+
+        tables
+    }
+
+    fn graphviz_table(&self) -> (String, String) {
+        let id = self.id;
+        let title = &self.title;
+        let rows = self
+            .instrs
+            .iter()
+            .map(|inst| match inst {
+                InstrNode::Instr(instr) => graphviz_instr_row(0, &instr.to_string()),
+                InstrNode::Block(block) => graphviz_block_row(block.id, &block.title),
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let edges = self
+            .instrs
+            .iter()
+            .filter_map(|instr| {
+                if let InstrNode::Block(block) = instr {
+                    Some(format!("{id} -> {}", block.id))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let table = format!(
+            r#"
+        <table style="rounded" border="1" cellborder="0" columns="*" rows="*" cellspacing="0" cellpadding="4">
+          <tr>
+            <td port="title" colspan="5">{title}</td>
+            <td port="id" colspan="1">{id}</td>
+          </tr>
+          {rows}
+        </table>
+        "#
+        );
+
+        (table, edges)
+    }
+
+    fn node(&self) -> (String, String) {
+        let id = self.id;
+        let (table, edges) = self.graphviz_table();
+        let table = format!(
+            r#"{id} [shape="none" label=<
+            {table}
+            >]"#
+        );
+
+        (table, edges)
+    }
+}
+
+fn make_abs_tree<'a>(
+    tree: InstrTree<RelInstruction<'a>>,
+    start: usize,
+) -> InstrTree<Instruction<'a>> {
+    InstrTree {
+        id: tree.id,
+        title: tree.title,
+        instrs: tree
+            .instrs
+            .into_iter()
+            .enumerate()
+            .map(|(i, node)| (i + start, node))
+            .map(|(i, node)| {
+                dbg!(i, &node);
+                match node {
+                    InstrNode::Instr(instr) => InstrNode::Instr(match instr {
+                        RelInstruction::Char(c) => Instruction::Char(c),
+                        RelInstruction::Digit => Instruction::Digit,
+                        RelInstruction::Jmp(offset) => {
+                            let dst = i as isize + offset;
+                            Instruction::Jmp(dst as usize)
+                        }
+                        RelInstruction::Split(o1, o2) => {
+                            let d1 = i as isize + o1;
+                            let d2 = i as isize + o2;
+
+                            Instruction::Split(d1 as usize, d2 as usize)
+                        }
+                    }),
+                    InstrNode::Block(block) => InstrNode::Block(make_abs_tree(block, i)),
+                }
+            })
+            .collect(),
+    }
+}
+
+pub fn vm_graphviz(expr: &Expr) -> String {
+    let tree = make_abs_tree(_compile(expr), 0);
+
+    tree.graphviz("Tree")
+}
+
+pub(super) fn compile<'a>(expr: &'a Expr<'a>) -> Vec<Instruction<'a>> {
+    let mut instrs = make_abs_tree(_compile(expr), 0).flatten();
+    println!("{instrs:?}");
+    // let mut instrs: Vec<Instruction> = _compile(expr)
+    //     .flatten()
+    //     .iter()
+    //     .enumerate()
+    //     .map(|(i, instr)| match instr {
+    //         RelInstruction::Char(c) => Instruction::Char(c),
+    //         RelInstruction::Digit => Instruction::Digit,
+    //         RelInstruction::Jmp(offset) => {
+    //             let addr = (i as isize) + offset;
+    //             Instruction::Jmp(addr as usize)
+    //         }
+    //         RelInstruction::Split(o1, o2) => {
+    //             let a1 = (i as isize) + o1;
+    //             let a2 = (i as isize) + o2;
+
+    //             Instruction::Split(a1 as usize, a2 as usize)
+    //         }
+    //     })
+    //     .collect();
 
     instrs.push(Instruction::Match);
     instrs
@@ -82,6 +237,7 @@ fn compile_primitive<'a>(exp: &'a PrimitiveExpr<'a>) -> InstrTree<RelInstruction
 
     InstrTree {
         id: *id,
+        title: "Primitive".to_string(),
         instrs: vec![InstrNode::Instr(RelInstruction::Char(token.lexeme()))],
     }
 }
@@ -90,6 +246,7 @@ fn compile_digit<'a>(exp: &'a DigitExpr) -> InstrTree<RelInstruction<'a>> {
     let DigitExpr { id } = exp;
     InstrTree {
         id: *id,
+        title: "digit".to_string(),
         instrs: vec![InstrNode::Instr(RelInstruction::Digit)],
     }
 }
@@ -98,6 +255,7 @@ fn compile_blank<'a>(exp: &'a BlankExpr) -> InstrTree<RelInstruction<'a>> {
     let BlankExpr { id } = exp;
     InstrTree {
         id: *id,
+        title: "blank".to_string(),
         instrs: vec![],
     }
 }
@@ -129,7 +287,11 @@ fn compile_choice_expr<'a>(exp: &'a ChoiceExpr<'a>) -> InstrTree<RelInstruction<
     )));
     instrs.push(InstrNode::Block(b_instrs));
 
-    InstrTree { id: *id, instrs }
+    InstrTree {
+        id: *id,
+        title: "Choice".to_string(),
+        instrs,
+    }
 }
 
 fn compile_sequence<'a>(exp: &'a SequenceExpr<'a>) -> InstrTree<RelInstruction<'a>> {
@@ -140,6 +302,7 @@ fn compile_sequence<'a>(exp: &'a SequenceExpr<'a>) -> InstrTree<RelInstruction<'
 
     InstrTree {
         id: *id,
+        title: "Sequence".to_string(),
         instrs: vec![InstrNode::Block(start_instrs), InstrNode::Block(end_instrs)],
     }
 }
@@ -160,7 +323,11 @@ fn compile_repetition<'a>(exp: &'a RepetitionExpr<'a>) -> InstrTree<RelInstructi
     instrs.push(InstrNode::Block(term_instrs));
     instrs.push(InstrNode::Instr(RelInstruction::Jmp(-stride)));
 
-    InstrTree { id: *id, instrs }
+    InstrTree {
+        id: *id,
+        instrs,
+        title: "Repetition".to_string(),
+    }
 }
 
 fn compile_oneormore<'a>(exp: &'a OneOrMoreExpr<'a>) -> InstrTree<RelInstruction<'a>> {
@@ -177,7 +344,11 @@ fn compile_oneormore<'a>(exp: &'a OneOrMoreExpr<'a>) -> InstrTree<RelInstruction
     instrs.push(InstrNode::Block(term_instrs));
     instrs.push(InstrNode::Instr(RelInstruction::Split(-stride, 1)));
 
-    InstrTree { id: *id, instrs }
+    InstrTree {
+        id: *id,
+        title: "OneOrMore".to_string(),
+        instrs,
+    }
 }
 
 #[cfg(test)]
@@ -193,6 +364,8 @@ mod test {
         let regex = parser.parse().unwrap();
 
         let instrs = compile(&regex);
+
+        println!("Oh no!");
 
         assert_eq!(
             instrs,

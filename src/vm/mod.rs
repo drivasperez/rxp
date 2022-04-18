@@ -2,7 +2,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::expr::Expr;
 
-mod compile;
+pub mod compile;
 
 #[derive(Debug, PartialEq, Eq)]
 enum Instruction<'a> {
@@ -11,6 +11,22 @@ enum Instruction<'a> {
     Jmp(usize),
     Split(usize, usize),
     Digit,
+}
+
+impl std::fmt::Display for Instruction<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Instruction::Char(c) => format!("CHAR {c}"),
+                Instruction::Match => "MATCH".to_string(),
+                Instruction::Jmp(dst) => format!("JMP {dst}"),
+                Instruction::Split(d1, d2) => format!("SPLIT {d1} {d2}"),
+                Instruction::Digit => "DIGIT".to_string(),
+            }
+        )
+    }
 }
 
 #[derive(Debug)]
