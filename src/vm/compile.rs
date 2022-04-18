@@ -33,6 +33,20 @@ impl<T: std::fmt::Debug> InstrTree<T> {
         })
     }
 
+    pub fn starting_line(&self) -> Option<usize> {
+        match self.instrs.first()? {
+            InstrNode::Instr(ln, _) => Some(*ln),
+            InstrNode::Block(block) => block.starting_line(),
+        }
+    }
+
+    pub fn ending_line(&self) -> Option<usize> {
+        match self.instrs.last()? {
+            InstrNode::Instr(ln, _) => Some(*ln),
+            InstrNode::Block(block) => block.ending_line(),
+        }
+    }
+
     pub fn flatten(self) -> Vec<T> {
         self.instrs.into_iter().fold(Vec::new(), |mut acc, next| {
             match next {
@@ -116,7 +130,23 @@ impl<T: std::fmt::Debug + std::fmt::Display> InstrTree<T> {
                 InstrNode::Instr(line_num, instr) => {
                     graphviz_instr_row(*line_num, &instr.to_string(), i == 0)
                 }
-                InstrNode::Block(block) => graphviz_block_row(block.id, &block.title),
+                InstrNode::Block(block) => {
+                    let start = block
+                        .starting_line()
+                        .map(|n| n.to_string())
+                        .unwrap_or_default();
+                    let end = block
+                        .ending_line()
+                        .map(|n| n.to_string())
+                        .unwrap_or_default();
+
+                    let range = if start == end {
+                        start
+                    } else {
+                        format!("{start}...{end}")
+                    };
+                    graphviz_block_row(block.id, &range)
+                }
             })
             .collect::<Vec<_>>()
             .join("\n");
@@ -325,7 +355,7 @@ fn compile_choice_expr<'a>(exp: &'a ChoiceExpr<'a>) -> InstrTree<RelInstruction<
     ));
     instrs.push(InstrNode::Block(a_instrs));
     instrs.push(InstrNode::Instr(
-        1,
+        0,
         RelInstruction::Jmp(b_instrs.len() as isize + 1),
     ));
     instrs.push(InstrNode::Block(b_instrs));
