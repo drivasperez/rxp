@@ -11,17 +11,17 @@ enum RelInstruction<'a> {
     Split(isize, isize),
 }
 
-enum InstrNode<'a> {
-    Instr(RelInstruction<'a>),
-    Block(InstrTree<'a>),
+enum InstrNode<T> {
+    Instr(T),
+    Block(InstrTree<T>),
 }
 
-struct InstrTree<'a> {
+struct InstrTree<T> {
     id: usize,
-    instrs: Vec<InstrNode<'a>>,
+    instrs: Vec<InstrNode<T>>,
 }
 
-impl<'a> InstrTree<'a> {
+impl<T> InstrTree<T> {
     pub fn len(&self) -> usize {
         self.instrs.iter().fold(0, |acc, next| match next {
             InstrNode::Instr(_) => acc + 1,
@@ -29,7 +29,7 @@ impl<'a> InstrTree<'a> {
         })
     }
 
-    pub fn flatten(self) -> Vec<RelInstruction<'a>> {
+    pub fn flatten(self) -> Vec<T> {
         self.instrs.into_iter().fold(Vec::new(), |mut acc, next| {
             match next {
                 InstrNode::Instr(instr) => acc.push(instr),
@@ -65,7 +65,7 @@ pub(super) fn compile<'a>(expr: &'a Expr<'a>) -> Vec<Instruction<'a>> {
     instrs
 }
 
-fn _compile<'a>(expr: &'a Expr<'a>) -> InstrTree<'a> {
+fn _compile<'a>(expr: &'a Expr<'a>) -> InstrTree<RelInstruction<'a>> {
     match expr {
         Expr::Choice(exp) => compile_choice_expr(exp),
         Expr::Sequence(exp) => compile_sequence(exp),
@@ -77,7 +77,7 @@ fn _compile<'a>(expr: &'a Expr<'a>) -> InstrTree<'a> {
     }
 }
 
-fn compile_primitive<'a>(exp: &'a PrimitiveExpr<'a>) -> InstrTree<'a> {
+fn compile_primitive<'a>(exp: &'a PrimitiveExpr<'a>) -> InstrTree<RelInstruction<'a>> {
     let PrimitiveExpr { token, id } = exp;
 
     InstrTree {
@@ -86,7 +86,7 @@ fn compile_primitive<'a>(exp: &'a PrimitiveExpr<'a>) -> InstrTree<'a> {
     }
 }
 
-fn compile_digit<'a>(exp: &'a DigitExpr) -> InstrTree<'a> {
+fn compile_digit<'a>(exp: &'a DigitExpr) -> InstrTree<RelInstruction<'a>> {
     let DigitExpr { id } = exp;
     InstrTree {
         id: *id,
@@ -94,7 +94,7 @@ fn compile_digit<'a>(exp: &'a DigitExpr) -> InstrTree<'a> {
     }
 }
 
-fn compile_blank<'a>(exp: &'a BlankExpr) -> InstrTree<'a> {
+fn compile_blank<'a>(exp: &'a BlankExpr) -> InstrTree<RelInstruction<'a>> {
     let BlankExpr { id } = exp;
     InstrTree {
         id: *id,
@@ -102,7 +102,7 @@ fn compile_blank<'a>(exp: &'a BlankExpr) -> InstrTree<'a> {
     }
 }
 
-fn compile_choice_expr<'a>(exp: &'a ChoiceExpr<'a>) -> InstrTree<'a> {
+fn compile_choice_expr<'a>(exp: &'a ChoiceExpr<'a>) -> InstrTree<RelInstruction<'a>> {
     let ChoiceExpr { a, b, id } = exp;
 
     let a_instrs = _compile(&*a);
@@ -132,7 +132,7 @@ fn compile_choice_expr<'a>(exp: &'a ChoiceExpr<'a>) -> InstrTree<'a> {
     InstrTree { id: *id, instrs }
 }
 
-fn compile_sequence<'a>(exp: &'a SequenceExpr<'a>) -> InstrTree<'a> {
+fn compile_sequence<'a>(exp: &'a SequenceExpr<'a>) -> InstrTree<RelInstruction<'a>> {
     let SequenceExpr { id, start, end } = exp;
 
     let mut start_instrs = _compile(start);
@@ -144,7 +144,7 @@ fn compile_sequence<'a>(exp: &'a SequenceExpr<'a>) -> InstrTree<'a> {
     }
 }
 
-fn compile_repetition<'a>(exp: &'a RepetitionExpr<'a>) -> InstrTree<'a> {
+fn compile_repetition<'a>(exp: &'a RepetitionExpr<'a>) -> InstrTree<RelInstruction<'a>> {
     let RepetitionExpr { term, id } = exp;
     let term_instrs = _compile(term);
     let stride = term_instrs.len() as isize + 1;
@@ -163,7 +163,7 @@ fn compile_repetition<'a>(exp: &'a RepetitionExpr<'a>) -> InstrTree<'a> {
     InstrTree { id: *id, instrs }
 }
 
-fn compile_oneormore<'a>(exp: &'a OneOrMoreExpr<'a>) -> InstrTree<'a> {
+fn compile_oneormore<'a>(exp: &'a OneOrMoreExpr<'a>) -> InstrTree<RelInstruction<'a>> {
     let OneOrMoreExpr { term, id } = exp;
     let term_instrs = _compile(term);
     let stride = term_instrs.len() as isize;
