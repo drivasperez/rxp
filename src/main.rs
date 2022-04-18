@@ -2,7 +2,7 @@ use color_eyre::eyre::{eyre, Error, Result};
 
 use std::str::FromStr;
 
-use rxp::{Compiler, DfaCompiler, Parser, Scanner};
+use rxp::{Compiler, DfaCompiler, Parser, Scanner, VirtualMachine};
 use structopt::StructOpt;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -47,6 +47,9 @@ enum Opt {
         /// testing.
         #[structopt(long)]
         dfa: bool,
+        /// Whether the regex should be compiled to bytecode and evaluated with a virtual machine.
+        #[structopt(long)]
+        vm: bool,
     },
 }
 
@@ -66,6 +69,17 @@ fn test_expression(regex_string: &str, test_string: &str, construct_dfa: bool) -
     };
 
     Ok(res)
+}
+
+fn test_vm_expression(regex_string: &str, test_string: &str) -> Result<bool> {
+    let scanner = Scanner::new(regex_string);
+    let mut parser = Parser::new(&scanner);
+    let regex = parser.parse()?;
+    let vm = VirtualMachine::from_expr(&regex);
+
+    dbg!(vm);
+
+    return Ok(true);
 }
 
 fn visualise_expression(regex_string: &str, phase: Phase) -> Result<String> {
@@ -106,7 +120,14 @@ fn main() -> Result<()> {
             regex,
             test_string,
             dfa,
-        } => println!("{}", test_expression(&regex, &test_string, dfa)?),
+            vm,
+        } => {
+            if vm {
+                println!("{}", test_vm_expression(&regex, &test_string)?)
+            } else {
+                println!("{}", test_expression(&regex, &test_string, dfa)?)
+            }
+        }
     }
 
     Ok(())

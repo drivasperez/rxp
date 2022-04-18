@@ -1,5 +1,8 @@
 use super::Instruction;
-use crate::expr::{ChoiceExpr, Expr, OneOrMoreExpr, PrimitiveExpr, RepetitionExpr, SequenceExpr};
+use crate::expr::{
+    BlankExpr, ChoiceExpr, DigitExpr, Expr, OneOrMoreExpr, PrimitiveExpr, RepetitionExpr,
+    SequenceExpr,
+};
 
 enum RelInstruction<'a> {
     Char(&'a str),
@@ -8,8 +11,38 @@ enum RelInstruction<'a> {
     Split(isize, isize),
 }
 
+enum InstrNode<'a> {
+    Instr(RelInstruction<'a>),
+    Block(InstrTree<'a>),
+}
+
+struct InstrTree<'a> {
+    id: usize,
+    instrs: Vec<InstrNode<'a>>,
+}
+
+impl<'a> InstrTree<'a> {
+    pub fn len(&self) -> usize {
+        self.instrs.iter().fold(0, |acc, next| match next {
+            InstrNode::Instr(_) => acc + 1,
+            InstrNode::Block(block) => acc + block.len(),
+        })
+    }
+
+    pub fn flatten(self) -> Vec<RelInstruction<'a>> {
+        self.instrs.into_iter().fold(Vec::new(), |mut acc, next| {
+            match next {
+                InstrNode::Instr(instr) => acc.push(instr),
+                InstrNode::Block(block) => acc.extend(block.flatten()),
+            };
+            acc
+        })
+    }
+}
+
 pub(super) fn compile<'a>(expr: &'a Expr<'a>) -> Vec<Instruction<'a>> {
     let mut instrs: Vec<Instruction> = _compile(expr)
+        .flatten()
         .iter()
         .enumerate()
         .map(|(i, instr)| match instr {
@@ -32,87 +65,119 @@ pub(super) fn compile<'a>(expr: &'a Expr<'a>) -> Vec<Instruction<'a>> {
     instrs
 }
 
-fn _compile<'a>(expr: &'a Expr<'a>) -> Vec<RelInstruction<'a>> {
+fn _compile<'a>(expr: &'a Expr<'a>) -> InstrTree<'a> {
     match expr {
         Expr::Choice(exp) => compile_choice_expr(exp),
         Expr::Sequence(exp) => compile_sequence(exp),
         Expr::Repetition(exp) => compile_repetition(exp),
         Expr::OneOrMore(exp) => compile_oneormore(exp),
         Expr::Primitive(exp) => compile_primitive(exp),
-        Expr::Digit(_) => compile_digit(),
-        Expr::Blank(_) => vec![],
+        Expr::Digit(exp) => compile_digit(exp),
+        Expr::Blank(exp) => compile_blank(exp),
     }
 }
 
-fn compile_primitive<'a>(exp: &'a PrimitiveExpr<'a>) -> Vec<RelInstruction<'a>> {
-    let PrimitiveExpr { token, .. } = exp;
+fn compile_primitive<'a>(exp: &'a PrimitiveExpr<'a>) -> InstrTree<'a> {
+    let PrimitiveExpr { token, id } = exp;
 
-    vec![RelInstruction::Char(token.lexeme())]
+    InstrTree {
+        id: *id,
+        instrs: vec![InstrNode::Instr(RelInstruction::Char(token.lexeme()))],
+    }
 }
 
-fn compile_digit<'a>() -> Vec<RelInstruction<'a>> {
-    vec![RelInstruction::Digit]
+fn compile_digit<'a>(exp: &'a DigitExpr) -> InstrTree<'a> {
+    let DigitExpr { id } = exp;
+    InstrTree {
+        id: *id,
+        instrs: vec![InstrNode::Instr(RelInstruction::Digit)],
+    }
 }
 
-fn compile_choice_expr<'a>(exp: &'a ChoiceExpr<'a>) -> Vec<RelInstruction<'a>> {
-    let ChoiceExpr { a, b, .. } = exp;
+fn compile_blank<'a>(exp: &'a BlankExpr) -> InstrTree<'a> {
+    let BlankExpr { id } = exp;
+    InstrTree {
+        id: *id,
+        instrs: vec![],
+    }
+}
+
+fn compile_choice_expr<'a>(exp: &'a ChoiceExpr<'a>) -> InstrTree<'a> {
+    let ChoiceExpr { a, b, id } = exp;
 
     let a_instrs = _compile(&*a);
     let b_instrs = _compile(&*b);
 
     let mut instrs = Vec::new();
 
-    // Split 1, ?
+    // Split 1, 5
     // A instr
     // A instr
     // A instr
     // Jmp ?
     // B instr
     // B instr
-    // Match lol
+    // MATCH
 
-    instrs.push(RelInstruction::Split(1, a_instrs.len() as isize + 2));
-    instrs.extend(a_instrs);
-    instrs.push(RelInstruction::Jmp(b_instrs.len() as isize + 1));
-    instrs.extend(b_instrs);
+    instrs.push(InstrNode::Instr(RelInstruction::Split(
+        1,
+        a_instrs.len() as isize + 2,
+    )));
+    instrs.push(InstrNode::Block(a_instrs));
+    instrs.push(InstrNode::Instr(RelInstruction::Jmp(
+        b_instrs.len() as isize + 1,
+    )));
+    instrs.push(InstrNode::Block(b_instrs));
 
-    instrs
+    InstrTree { id: *id, instrs }
 }
 
-fn compile_sequence<'a>(exp: &'a SequenceExpr<'a>) -> Vec<RelInstruction<'a>> {
-    let SequenceExpr { start, end, .. } = exp;
+fn compile_sequence<'a>(exp: &'a SequenceExpr<'a>) -> InstrTree<'a> {
+    let SequenceExpr { id, start, end } = exp;
 
     let mut start_instrs = _compile(start);
     let end_instrs = _compile(end);
 
-    start_instrs.extend(end_instrs);
-
-    start_instrs
+    InstrTree {
+        id: *id,
+        instrs: vec![InstrNode::Block(start_instrs), InstrNode::Block(end_instrs)],
+    }
 }
 
-fn compile_repetition<'a>(exp: &'a RepetitionExpr<'a>) -> Vec<RelInstruction<'a>> {
-    let RepetitionExpr { term, .. } = exp;
+fn compile_repetition<'a>(exp: &'a RepetitionExpr<'a>) -> InstrTree<'a> {
+    let RepetitionExpr { term, id } = exp;
     let term_instrs = _compile(term);
     let stride = term_instrs.len() as isize + 1;
 
-    let mut instrs = Vec::new();
-    instrs.push(RelInstruction::Split(1, stride + 1));
-    instrs.extend(term_instrs);
-    instrs.push(RelInstruction::Jmp(-stride));
+    // spl 1, 4
+    // instr a
+    // instr a
+    // jmp -3
+    // MATCH
 
-    instrs
+    let mut instrs = Vec::new();
+    instrs.push(InstrNode::Instr(RelInstruction::Split(1, stride + 1)));
+    instrs.push(InstrNode::Block(term_instrs));
+    instrs.push(InstrNode::Instr(RelInstruction::Jmp(-stride)));
+
+    InstrTree { id: *id, instrs }
 }
 
-fn compile_oneormore<'a>(exp: &'a OneOrMoreExpr<'a>) -> Vec<RelInstruction<'a>> {
-    let OneOrMoreExpr { term, .. } = exp;
+fn compile_oneormore<'a>(exp: &'a OneOrMoreExpr<'a>) -> InstrTree<'a> {
+    let OneOrMoreExpr { term, id } = exp;
     let term_instrs = _compile(term);
     let stride = term_instrs.len() as isize;
 
-    let mut instrs = Vec::new();
-    instrs.extend(term_instrs);
-    instrs.push(RelInstruction::Split(-stride, 1));
+    // instr a
+    // instr a
+    // split -2, 1
+    // MATCH
 
-    instrs
+    let mut instrs = Vec::new();
+    instrs.push(InstrNode::Block(term_instrs));
+    instrs.push(InstrNode::Instr(RelInstruction::Split(-stride, 1)));
+
+    InstrTree { id: *id, instrs }
 }
 
 #[cfg(test)]

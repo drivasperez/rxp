@@ -37,6 +37,16 @@ impl<'a> VirtualMachine<'a> {
     }
 
     pub fn matches(&self, input: &str) -> bool {
+        let instr = self
+            .instructions
+            .iter()
+            .enumerate()
+            .map(|(i, instr)| format!("{i} : {instr:?}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        println!("{instr}");
+
         let input = input.graphemes(true).collect::<Vec<_>>();
         let mut threads = vec![Thread { pc: 0, sp: 0 }];
 
@@ -185,10 +195,15 @@ mod test {
     }
 
     #[test]
+    fn hmm() {
+        match_regex!("(a|b*)*", "a", true);
+    }
+
+    #[test]
     fn mixed() {
-        match_regex!("(hello)*|g\\dodbye", "hellohellohellohello", true);
-        match_regex!("(hello)*|goodbye", "hellogoodbyehellohello", false);
+        // match_regex!("(hello)*|g\\dodbye", "hellohellohellohello", true);
+        // match_regex!("(hello)*|goodbye", "hellogoodbyehellohello", false);
         match_regex!("((hello)*|goodbye)*", "hellogoodbyehellohello", true);
-        match_regex!("((hello)*|g\\dodbye)*", "hellog3odbyehellohello", true);
+        // match_regex!("((hello)*|g\\dodbye)*", "hellog3odbyehellohello", true);
     }
 }

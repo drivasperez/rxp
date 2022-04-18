@@ -28,7 +28,7 @@ impl<'a> Expr<'a> {
 
 #[derive(Debug)]
 pub struct ChoiceExpr<'a> {
-    id: usize,
+    pub id: usize,
     pub a: Box<Expr<'a>>,
     pub b: Box<Expr<'a>>,
 }
@@ -45,7 +45,7 @@ impl<'a> ChoiceExpr<'a> {
 
 #[derive(Debug)]
 pub struct SequenceExpr<'a> {
-    id: usize,
+    pub id: usize,
     pub start: Box<Expr<'a>>,
     pub end: Box<Expr<'a>>,
 }
@@ -62,7 +62,7 @@ impl<'a> SequenceExpr<'a> {
 
 #[derive(Debug)]
 pub struct RepetitionExpr<'a> {
-    id: usize,
+    pub id: usize,
     pub term: Box<Expr<'a>>,
 }
 
@@ -77,7 +77,7 @@ impl<'a> RepetitionExpr<'a> {
 
 #[derive(Debug)]
 pub struct OneOrMoreExpr<'a> {
-    id: usize,
+    pub id: usize,
     pub term: Box<Expr<'a>>,
 }
 
@@ -92,7 +92,7 @@ impl<'a> OneOrMoreExpr<'a> {
 
 #[derive(Debug)]
 pub struct PrimitiveExpr<'a> {
-    id: usize,
+    pub id: usize,
     pub token: Token<'a>,
 }
 
@@ -104,7 +104,7 @@ impl<'a> PrimitiveExpr<'a> {
 
 #[derive(Debug)]
 pub struct BlankExpr {
-    id: usize,
+    pub id: usize,
 }
 
 impl BlankExpr {
@@ -115,7 +115,7 @@ impl BlankExpr {
 
 #[derive(Debug)]
 pub struct DigitExpr {
-    id: usize,
+    pub id: usize,
 }
 
 impl DigitExpr {
