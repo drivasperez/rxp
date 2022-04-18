@@ -136,7 +136,7 @@ impl<T: std::fmt::Debug + std::fmt::Display> InstrTree<T> {
 
         let table = format!(
             r#"
-        <table style="rounded" border="1" cellborder="0" columns="*" rows="*" cellspacing="0" cellpadding="4">
+        <table style="rounded" border="1" cellborder="0" columns="*" rows="*" cellspacing="0" cellpadding="8">
           <tr>
             <td port="title" colspan="5">{title}</td>
             <td port="id" colspan="1">{id}</td>
@@ -153,7 +153,7 @@ impl<T: std::fmt::Debug + std::fmt::Display> InstrTree<T> {
         let id = self.id;
         let (table, edges) = self.graphviz_table();
         let table = format!(
-            r#"{id} [shape="none" label=<
+            r#"{id} [shape="none" fontname="Monospace" label=<
             {table}
             >]"#
         );
@@ -194,28 +194,25 @@ fn make_abs_tree<'a>(tree: InstrTree<RelInstruction<'a>>) -> InstrTree<Instructi
         instrs: tree
             .instrs
             .into_iter()
-            .map(|node| {
-                match node {
-                    InstrNode::Instr(line_num, instr) => InstrNode::Instr(
-                        // TODO: Use line_num here instead of i
-                        line_num,
-                        match instr {
-                            RelInstruction::Char(c) => Instruction::Char(c),
-                            RelInstruction::Digit => Instruction::Digit,
-                            RelInstruction::Jmp(offset) => {
-                                let dst = line_num as isize + offset;
-                                Instruction::Jmp(dst as usize)
-                            }
-                            RelInstruction::Split(o1, o2) => {
-                                let d1 = line_num as isize + o1;
-                                let d2 = line_num as isize + o2;
+            .map(|node| match node {
+                InstrNode::Instr(line_num, instr) => InstrNode::Instr(
+                    line_num,
+                    match instr {
+                        RelInstruction::Char(c) => Instruction::Char(c),
+                        RelInstruction::Digit => Instruction::Digit,
+                        RelInstruction::Jmp(offset) => {
+                            let dst = line_num as isize + offset;
+                            Instruction::Jmp(dst as usize)
+                        }
+                        RelInstruction::Split(o1, o2) => {
+                            let d1 = line_num as isize + o1;
+                            let d2 = line_num as isize + o2;
 
-                                Instruction::Split(d1 as usize, d2 as usize)
-                            }
-                        },
-                    ),
-                    InstrNode::Block(block) => InstrNode::Block(make_abs_tree(block)),
-                }
+                            Instruction::Split(d1 as usize, d2 as usize)
+                        }
+                    },
+                ),
+                InstrNode::Block(block) => InstrNode::Block(make_abs_tree(block)),
             })
             .collect(),
     }
@@ -238,6 +235,31 @@ pub(super) fn compile<'a>(expr: &'a Expr<'a>) -> Vec<Instruction<'a>> {
     // TODO: Add Match to tree rather than here for better visualisation.
     instrs.push(Instruction::Match);
     instrs
+}
+
+pub fn instructions_graphviz(expr: &Expr, graph_name: &str) -> String {
+    let rows: Vec<String> = compile(expr)
+        .into_iter()
+        .enumerate()
+        .map(|(i, instr)| graphviz_instr_row(i, &instr.to_string(), false))
+        .collect();
+
+    let rows = rows.join("\n");
+    format!(
+        r#"
+        digraph "{graph_name}" {{
+            rankdir=LR
+            table [shape="none" fontname="Monospace" label=<
+        <table style="rounded" border="1" cellborder="0" columns="*" rows="*" cellspacing="0" cellpadding="8">
+          <tr>
+            <td port="title" colspan="6">{graph_name}</td>
+          </tr>
+          {rows}
+        </table>
+            >]
+        }}
+    "#
+    )
 }
 
 fn _compile<'a>(expr: &'a Expr<'a>) -> InstrTree<RelInstruction<'a>> {
@@ -333,16 +355,15 @@ fn compile_repetition<'a>(exp: &'a RepetitionExpr<'a>) -> InstrTree<RelInstructi
     let term_instrs = _compile(term);
     let stride = term_instrs.len() as isize + 1;
 
-    // spl 1, 4
-    // instr a
-    // instr a
-    // jmp -3
-    // MATCH
+    // 0: spl 1, 3
+    // 1: instr a
+    // 2: jmp 0
+    // 3: MATCH
 
     let mut instrs = Vec::new();
     instrs.push(InstrNode::Instr(0, RelInstruction::Split(1, stride + 1)));
     instrs.push(InstrNode::Block(term_instrs));
-    instrs.push(InstrNode::Instr(1, RelInstruction::Jmp(-stride)));
+    instrs.push(InstrNode::Instr(0, RelInstruction::Jmp(-stride)));
 
     InstrTree {
         id: *id,

@@ -12,7 +12,10 @@ mod vm;
 
 pub use scanner::Scanner;
 pub use state::{Compiler, DfaCompiler, DfaState, State};
-pub use vm::{compile::vm_graphviz, VirtualMachine};
+pub use vm::{
+    compile::{instructions_graphviz, vm_graphviz},
+    VirtualMachine,
+};
 
 use color_eyre::eyre::{eyre, Result};
 

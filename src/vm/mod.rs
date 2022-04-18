@@ -61,6 +61,7 @@ impl<'a> VirtualMachine<'a> {
             .collect::<Vec<_>>()
             .join("\n");
 
+        println!("Input: {input}");
         println!("{instr}");
 
         let input = input.graphemes(true).collect::<Vec<_>>();
@@ -136,6 +137,7 @@ mod test {
             let scanner = Scanner::new($regex);
             let mut parser = Parser::new(&scanner);
             let re = parser.parse().unwrap();
+            println!("Regex: {}", $regex);
             let vm = VirtualMachine::from_expr(&re);
 
             assert_eq!($matches, vm.matches($test));
@@ -217,9 +219,9 @@ mod test {
 
     #[test]
     fn mixed() {
-        // match_regex!("(hello)*|g\\dodbye", "hellohellohellohello", true);
-        // match_regex!("(hello)*|goodbye", "hellogoodbyehellohello", false);
+        match_regex!("(hello)*|g\\dodbye", "hellohellohellohello", true);
+        match_regex!("(hello)*|goodbye", "hellogoodbyehellohello", false);
         match_regex!("((hello)*|goodbye)*", "hellogoodbyehellohello", true);
-        // match_regex!("((hello)*|g\\dodbye)*", "hellog3odbyehellohello", true);
+        match_regex!("((hello)*|g\\dodbye)*", "hellog3odbyehellohello", true);
     }
 }

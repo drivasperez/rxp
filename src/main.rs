@@ -2,7 +2,9 @@ use color_eyre::eyre::{eyre, Error, Result};
 
 use std::str::FromStr;
 
-use rxp::{vm_graphviz, Compiler, DfaCompiler, Parser, Scanner, VirtualMachine};
+use rxp::{
+    instructions_graphviz, vm_graphviz, Compiler, DfaCompiler, Parser, Scanner, VirtualMachine,
+};
 use structopt::StructOpt;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -12,6 +14,7 @@ enum Phase {
     Nfa,
     Dfa,
     Vm,
+    Instructions,
 }
 
 impl FromStr for Phase {
@@ -24,6 +27,7 @@ impl FromStr for Phase {
             "nfa" => Ok(Self::Nfa),
             "dfa" => Ok(Self::Dfa),
             "vm" => Ok(Self::Vm),
+            "instructions" => Ok(Self::Instructions),
             other => Err(eyre!("Expected scanner, dfa, nfa or parser, got {other}")),
         }
     }
@@ -92,6 +96,14 @@ fn visualise_vm(regex_string: &str) -> Result<String> {
     Ok(vm_graphviz(&regex))
 }
 
+fn visualise_instructions(regex_string: &str) -> Result<String> {
+    let scanner = Scanner::new(regex_string);
+    let mut parser = Parser::new(&scanner);
+    let regex = parser.parse()?;
+
+    Ok(instructions_graphviz(&regex, regex_string))
+}
+
 fn visualise_expression(regex_string: &str, phase: Phase) -> Result<String> {
     let scanner = Scanner::new(regex_string);
     if phase == Phase::Tokens {
@@ -125,13 +137,15 @@ fn visualise_expression(regex_string: &str, phase: Phase) -> Result<String> {
 fn main() -> Result<()> {
     color_eyre::install()?;
     match Opt::from_args() {
-        Opt::Dot { phase, regex } => {
-            if phase == Phase::Vm {
+        Opt::Dot { phase, regex } => match phase {
+            Phase::Vm => {
                 println!("{}", visualise_vm(&regex)?);
-            } else {
-                println!("{}", visualise_expression(&regex, phase)?);
             }
-        }
+            Phase::Instructions => {
+                println!("{}", visualise_instructions(&regex)?)
+            }
+            _ => println!("{}", visualise_expression(&regex, phase)?),
+        },
         Opt::Test {
             regex,
             test_string,
