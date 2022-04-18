@@ -44,11 +44,16 @@ impl<T: std::fmt::Debug> InstrTree<T> {
     }
 }
 
-fn graphviz_instr_row(line_number: usize, value: &str) -> String {
+fn graphviz_instr_row(line_number: usize, value: &str, is_first: bool) -> String {
+    let port = if !is_first {
+        line_number.to_string()
+    } else {
+        "init".to_string()
+    };
     format!(
         r#"
     <tr>
-      <td port="{line_number}" colspan="1">{line_number}</td>
+      <td port="{port}" colspan="1">{line_number}</td>
       <td colspan="5">{value}</td>
     </tr>
     "#
@@ -67,9 +72,12 @@ fn graphviz_block_row(id: usize, title: &str) -> String {
 
 impl<T: std::fmt::Debug + std::fmt::Display> InstrTree<T> {
     pub fn graphviz(&self, graph_name: &str) -> String {
-        let (tables, edges): (Vec<_>, Vec<_>) = self.all_graphviz_tables().into_iter().unzip();
+        let (tables, mut edges): (Vec<_>, Vec<_>) = self.all_graphviz_tables().into_iter().unzip();
 
         let tables = tables.join("\n");
+        // TODO: Horrible hack. Why do duplicates appear?
+        edges.sort_unstable();
+        edges.dedup();
         let edges = edges.join("\n");
 
         format!(
@@ -103,9 +111,10 @@ impl<T: std::fmt::Debug + std::fmt::Display> InstrTree<T> {
         let rows = self
             .instrs
             .iter()
-            .map(|inst| match inst {
+            .enumerate()
+            .map(|(i, inst)| match inst {
                 InstrNode::Instr(line_num, instr) => {
-                    graphviz_instr_row(*line_num, &instr.to_string())
+                    graphviz_instr_row(*line_num, &instr.to_string(), i == 0)
                 }
                 InstrNode::Block(block) => graphviz_block_row(block.id, &block.title),
             })
@@ -117,7 +126,7 @@ impl<T: std::fmt::Debug + std::fmt::Display> InstrTree<T> {
             .iter()
             .filter_map(|instr| {
                 if let InstrNode::Block(block) = instr {
-                    Some(format!("{id} -> {}", block.id))
+                    Some(format!("{id}:out{} -> {}:init", block.id, block.id))
                 } else {
                     None
                 }
@@ -225,26 +234,8 @@ pub(super) fn compile<'a>(expr: &'a Expr<'a>) -> Vec<Instruction<'a>> {
     let tree = correct_line_numbers(tree, 0);
     let tree = make_abs_tree(tree);
     let mut instrs = tree.flatten();
-    // let mut instrs: Vec<Instruction> = _compile(expr)
-    //     .flatten()
-    //     .iter()
-    //     .enumerate()
-    //     .map(|(i, instr)| match instr {
-    //         RelInstruction::Char(c) => Instruction::Char(c),
-    //         RelInstruction::Digit => Instruction::Digit,
-    //         RelInstruction::Jmp(offset) => {
-    //             let addr = (i as isize) + offset;
-    //             Instruction::Jmp(addr as usize)
-    //         }
-    //         RelInstruction::Split(o1, o2) => {
-    //             let a1 = (i as isize) + o1;
-    //             let a2 = (i as isize) + o2;
 
-    //             Instruction::Split(a1 as usize, a2 as usize)
-    //         }
-    //     })
-    //     .collect();
-
+    // TODO: Add Match to tree rather than here for better visualisation.
     instrs.push(Instruction::Match);
     instrs
 }

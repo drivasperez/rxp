@@ -19,10 +19,10 @@ impl std::fmt::Display for Instruction<'_> {
             f,
             "{}",
             match self {
-                Instruction::Char(c) => format!("CHAR {c}"),
+                Instruction::Char(c) => format!("CHAR '{c}'"),
                 Instruction::Match => "MATCH".to_string(),
                 Instruction::Jmp(dst) => format!("JMP {dst}"),
-                Instruction::Split(d1, d2) => format!("SPLIT {d1} {d2}"),
+                Instruction::Split(d1, d2) => format!("SPL {d1}, {d2}"),
                 Instruction::Digit => "DIGIT".to_string(),
             }
         )
