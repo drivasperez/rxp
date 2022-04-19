@@ -26,8 +26,8 @@ impl FromStr for Phase {
             "ast" => Ok(Self::Ast),
             "nfa" => Ok(Self::Nfa),
             "dfa" => Ok(Self::Dfa),
-            "vm" => Ok(Self::Vm),
-            "instructions" => Ok(Self::Instructions),
+            "vmtree" => Ok(Self::Vm),
+            "vm" => Ok(Self::Instructions),
             other => Err(eyre!("Expected scanner, dfa, nfa or parser, got {other}")),
         }
     }
@@ -104,34 +104,40 @@ fn visualise_instructions(regex_string: &str) -> Result<String> {
     Ok(instructions_graphviz(&regex, regex_string))
 }
 
-fn visualise_expression(regex_string: &str, phase: Phase) -> Result<String> {
+fn visualise_scanner(regex_string: &str) -> String {
     let scanner = Scanner::new(regex_string);
-    if phase == Phase::Tokens {
-        return Ok(scanner.graphviz("Scanner"));
-    }
+    scanner.graphviz("Scanner")
+}
 
+fn visualise_ast(regex_string: &str) -> Result<String> {
+    let scanner = Scanner::new(regex_string);
     let mut parser = Parser::new(&scanner);
     let regex = parser.parse()?;
+    Ok(regex.graphviz("Parser"))
+}
 
-    if phase == Phase::Ast {
-        return Ok(regex.graphviz("Parser"));
-    }
+fn visualise_nfa(regex_string: &str) -> Result<String> {
+    let scanner = Scanner::new(regex_string);
+    let mut parser = Parser::new(&scanner);
+    let regex = parser.parse()?;
 
     let compiler = Compiler::new();
     let nfa = compiler.compile(&regex);
 
-    if phase == Phase::Nfa {
-        return Ok(nfa.graphviz("Nfa"));
-    }
+    Ok(nfa.graphviz("Nfa"))
+}
+
+fn visualise_dfa(regex_string: &str) -> Result<String> {
+    let scanner = Scanner::new(regex_string);
+    let mut parser = Parser::new(&scanner);
+    let regex = parser.parse()?;
+
+    let compiler = Compiler::new();
+    let nfa = compiler.compile(&regex);
 
     let dfa_compiler = DfaCompiler::new();
     let dfa = dfa_compiler.create_dfa(nfa);
-
-    if phase == Phase::Dfa {
-        return Ok(dfa.graphviz("Dfa"));
-    }
-
-    Err(eyre!("Haven't implemented that yet."))
+    Ok(dfa.graphviz("Dfa"))
 }
 
 fn main() -> Result<()> {
@@ -144,7 +150,18 @@ fn main() -> Result<()> {
             Phase::Instructions => {
                 println!("{}", visualise_instructions(&regex)?)
             }
-            _ => println!("{}", visualise_expression(&regex, phase)?),
+            Phase::Tokens => {
+                println!("{}", visualise_scanner(&regex))
+            }
+            Phase::Ast => {
+                println!("{}", visualise_ast(&regex)?)
+            }
+            Phase::Nfa => {
+                println!("{}", visualise_nfa(&regex)?)
+            }
+            Phase::Dfa => {
+                println!("{}", visualise_dfa(&regex)?)
+            }
         },
         Opt::Test {
             regex,
