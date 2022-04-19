@@ -53,6 +53,11 @@ impl<'a> State<'a> {
                 if visited.contains(&state.id) {
                     continue;
                 }
+
+                // We matched with input left to go. That's fine.
+                if transitions.is_empty() {
+                    return true;
+                }
                 for transition in transitions.iter() {
                     match transition.kind {
                         None => {
@@ -78,6 +83,7 @@ impl<'a> State<'a> {
                 }
                 visited.insert(state.id);
             }
+
             // next_states is now current_states.
             // Previous current_states is empty so we can reuse it as next_states.
             std::mem::swap(&mut current_states, &mut next_states);
@@ -376,7 +382,7 @@ impl<'a> DfaState<'a> {
             {
                 current_state = transition.state;
             } else {
-                return false;
+                break;
             }
         }
 
@@ -531,7 +537,7 @@ mod test {
     #[test]
     fn single_char() {
         match_regex!("a", "a", true);
-        match_regex!("a", "ab", false);
+        match_regex!("a", "ab", true);
         match_regex!("a", "ba", false);
     }
 
@@ -565,8 +571,9 @@ mod test {
         match_regex!("ab*", "ab", true);
         match_regex!("ab*", "abb", true);
         match_regex!("ab*", "abbbbbb", true);
-        match_regex!("ab*", "aba", false);
-        match_regex!("ab*", "abababababab", false);
+        match_regex!("ab*", "aba", true);
+        match_regex!("ab*", "abababababab", true);
+        match_regex!("ab*", "aabababababab", true);
         match_regex!("(ab)*", "abababababab", true);
     }
 
@@ -575,7 +582,7 @@ mod test {
         match_regex!("a|b", "a", true);
         match_regex!("a|b", "b", true);
         match_regex!("a|b", "c", false);
-        match_regex!("a|b", "ac", false);
+        match_regex!("a|b", "ac", true);
         match_regex!("a|b", "ca", false);
         match_regex!("hello|goodbye", "hello", true);
         match_regex!("hello|goodbye", "goodbye", true);
@@ -597,9 +604,15 @@ mod test {
     }
 
     #[test]
+    fn hmm() {
+        match_regex!("(a|b*)*", "a", true);
+    }
+
+    #[test]
     fn mixed() {
         match_regex!("(hello)*|g\\dodbye", "hellohellohellohello", true);
-        match_regex!("(hello)*|goodbye", "hellogoodbyehellohello", false);
+        match_regex!("(hello)*|goodbye", "hellogoodbyehellohello", true);
+        match_regex!("(hello)+|goodbye", "hellgoodbyehellohello", false);
         match_regex!("((hello)*|goodbye)*", "hellogoodbyehellohello", true);
         match_regex!("((hello)*|g\\dodbye)*", "hellog3odbyehellohello", true);
     }
