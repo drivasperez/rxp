@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::expr::Expr;
@@ -32,7 +34,6 @@ impl std::fmt::Display for Instruction<'_> {
 #[derive(Debug)]
 struct Thread {
     pc: usize,
-    sp: usize,
 }
 
 #[derive(Debug)]
@@ -64,48 +65,57 @@ impl<'a> VirtualMachine<'a> {
         println!("Input: {input}");
         println!("{instr}");
 
-        let input = input.graphemes(true).collect::<Vec<_>>();
-        let mut threads = vec![Thread { pc: 0, sp: 0 }];
+        let mut graphemes = input.graphemes(true).rev().collect::<Vec<_>>();
 
-        while let Some(thread) = threads.pop() {
-            let Thread { mut pc, mut sp } = thread;
-            loop {
-                match self.instructions[pc] {
+        let mut current_threads = VecDeque::with_capacity(self.instructions.len());
+        let mut next_threads = VecDeque::with_capacity(self.instructions.len());
+
+        current_threads.push_back(Thread { pc: 0 });
+
+        while let Some(ch) = graphemes.pop() {
+            while let Some(thread) = current_threads.pop_front() {
+                let Thread { pc } = thread;
+                match self.instructions[thread.pc] {
                     Instruction::Char(c) => {
-                        if sp >= input.len() || input[sp] != c {
-                            // Did not match, kill this thread.
-                            break;
+                        if ch == c {
+                            next_threads.push_back(Thread { pc: pc + 1 });
                         }
-                        // Advance program and input counter.
-                        pc += 1;
-                        sp += 1;
                     }
                     Instruction::Digit => {
-                        if sp >= input.len() || !input[sp].chars().all(|x| x.is_ascii_digit()) {
-                            break;
+                        if ch.chars().all(|n| n.is_ascii_digit()) {
+                            next_threads.push_back(Thread { pc: pc + 1 });
                         }
-                        pc += 1;
-                        sp += 1;
                     }
-                    // If we matched and there is no more input, we're good.
-                    // TODO: Most implementations would permit remaining input this and
-                    // introduce $^ to adjust behaviour, but don't have that in NFA/DFA
-                    // implementations and want to be consistent.
-                    Instruction::Match => return sp >= input.len(),
-                    Instruction::Jmp(addr) => {
-                        // Jump to addr by changing program counter.
-                        pc = addr;
+                    Instruction::Match => return true,
+                    Instruction::Jmp(dst) => {
+                        current_threads.push_back(Thread { pc: dst });
                     }
-                    Instruction::Split(a1, a2) => {
-                        // Jump this thread to a1.
-                        pc = a1;
-                        // Spawn a new thread starting at a2
-                        threads.push(Thread { sp, pc: a2 });
+                    Instruction::Split(d1, d2) => {
+                        current_threads.push_back(Thread { pc: d1 });
+                        current_threads.push_back(Thread { pc: d2 });
                     }
                 }
             }
+            println!("Curr: {current_threads:?}");
+            // println!("Next: {next_threads:?}");
+            std::mem::swap(&mut current_threads, &mut next_threads);
         }
 
+        println!("Final threads: {current_threads:?}");
+        while let Some(thread) = current_threads.pop_front() {
+            let Thread { pc } = thread;
+            match self.instructions[pc] {
+                Instruction::Char(_) | Instruction::Digit => continue,
+                Instruction::Match => return true,
+                Instruction::Jmp(dst) => {
+                    current_threads.push_back(Thread { pc: dst });
+                }
+                Instruction::Split(d1, d2) => {
+                    current_threads.push_back(Thread { pc: d1 });
+                    current_threads.push_back(Thread { pc: d2 });
+                }
+            }
+        }
         return false;
     }
 }
@@ -129,7 +139,7 @@ mod test {
         let vm = VirtualMachine::new(instructions);
 
         assert!(vm.matches("aabb"));
-        assert!(!vm.matches("abcd"))
+        assert!(vm.matches("abcd"))
     }
 
     macro_rules! match_regex {
@@ -147,7 +157,7 @@ mod test {
     #[test]
     fn single_char() {
         match_regex!("a", "a", true);
-        match_regex!("a", "ab", false);
+        match_regex!("a", "ab", true);
         match_regex!("a", "ba", false);
     }
 
@@ -181,8 +191,9 @@ mod test {
         match_regex!("ab*", "ab", true);
         match_regex!("ab*", "abb", true);
         match_regex!("ab*", "abbbbbb", true);
-        match_regex!("ab*", "aba", false);
-        match_regex!("ab*", "abababababab", false);
+        match_regex!("ab*", "aba", true);
+        match_regex!("ab*", "abababababab", true);
+        match_regex!("ab*", "aabababababab", true);
         match_regex!("(ab)*", "abababababab", true);
     }
 
@@ -191,7 +202,7 @@ mod test {
         match_regex!("a|b", "a", true);
         match_regex!("a|b", "b", true);
         match_regex!("a|b", "c", false);
-        match_regex!("a|b", "ac", false);
+        match_regex!("a|b", "ac", true);
         match_regex!("a|b", "ca", false);
         match_regex!("hello|goodbye", "hello", true);
         match_regex!("hello|goodbye", "goodbye", true);
@@ -220,7 +231,8 @@ mod test {
     #[test]
     fn mixed() {
         match_regex!("(hello)*|g\\dodbye", "hellohellohellohello", true);
-        match_regex!("(hello)*|goodbye", "hellogoodbyehellohello", false);
+        match_regex!("(hello)*|goodbye", "hellogoodbyehellohello", true);
+        match_regex!("(hello)+|goodbye", "hellgoodbyehellohello", false);
         match_regex!("((hello)*|goodbye)*", "hellogoodbyehellohello", true);
         match_regex!("((hello)*|g\\dodbye)*", "hellog3odbyehellohello", true);
     }

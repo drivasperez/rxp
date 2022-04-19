@@ -351,7 +351,7 @@ fn compile_choice_expr<'a>(exp: &'a ChoiceExpr<'a>) -> InstrTree<RelInstruction<
 
     instrs.push(InstrNode::Instr(
         0,
-        RelInstruction::Split(0, a_instrs.len() as isize + 2),
+        RelInstruction::Split(1, a_instrs.len() as isize + 2),
     ));
     instrs.push(InstrNode::Block(a_instrs));
     instrs.push(InstrNode::Instr(
