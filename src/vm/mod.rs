@@ -54,17 +54,6 @@ impl<'a> VirtualMachine<'a> {
     }
 
     pub fn matches(&self, input: &str) -> bool {
-        let instr = self
-            .instructions
-            .iter()
-            .enumerate()
-            .map(|(i, instr)| format!("{i} : {instr:?}"))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        println!("Input: {input}");
-        println!("{instr}");
-
         let mut graphemes = input.graphemes(true).rev().collect::<Vec<_>>();
 
         let mut current_threads = VecDeque::with_capacity(self.instructions.len());
@@ -96,12 +85,9 @@ impl<'a> VirtualMachine<'a> {
                     }
                 }
             }
-            println!("Curr: {current_threads:?}");
-            // println!("Next: {next_threads:?}");
             std::mem::swap(&mut current_threads, &mut next_threads);
         }
 
-        println!("Final threads: {current_threads:?}");
         while let Some(thread) = current_threads.pop_front() {
             let Thread { pc } = thread;
             match self.instructions[pc] {
