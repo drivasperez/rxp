@@ -94,7 +94,7 @@ impl<T: std::fmt::Debug + std::fmt::Display> InstrTree<T> {
         let (tables, mut edges): (Vec<_>, Vec<_>) = self.all_graphviz_tables().into_iter().unzip();
 
         let tables = tables.join("\n");
-        // TODO: Horrible hack. Why do duplicates appear?
+        // TODO: Generate edges in a way that doesn't produce duplicates
         edges.sort_unstable();
         edges.dedup();
         let edges = edges.join("\n");

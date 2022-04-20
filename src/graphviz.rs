@@ -43,6 +43,7 @@ impl std::fmt::Display for Shape {
 
 #[derive(Clone, Default, Debug)]
 pub struct Style {
+    fontname: Option<String>,
     label: Option<String>,
     shape: Option<Shape>,
     height: Option<f32>,
@@ -52,11 +53,12 @@ pub struct Style {
 impl std::fmt::Display for Style {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let label = self.label.clone().map(|s| format!("label=\"{s}\""));
+        let fontname = self.fontname.clone().map(|s| format!("fontname={s}"));
         let shape = self.shape.map(|s| format!("shape={s}"));
         let height = self.height.map(|s| format!("height={s}"));
         let width = self.width.map(|s| format!("width={s}"));
 
-        let s = [label, shape, height, width]
+        let s = [label, fontname, shape, height, width]
             .into_iter()
             .flatten()
             .collect::<Vec<_>>()
@@ -69,6 +71,11 @@ impl std::fmt::Display for Style {
 impl Style {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn fontname(mut self, fontname: impl ToString) -> Self {
+        self.fontname = Some(fontname.to_string());
+        self
     }
 
     pub fn label(mut self, label: impl ToString) -> Self {

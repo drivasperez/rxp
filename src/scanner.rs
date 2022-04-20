@@ -72,10 +72,10 @@ impl Scanner<'_> {
         for (i, token) in self.tokens().enumerate() {
             if let Token::GraphemeCluster(_) = &token {
                 let lexeme = token.lexeme();
-                digraph.vertex(i, Style::new().label(lexeme));
+                digraph.vertex(i, Style::new().label(lexeme).fontname("Monospace"));
             } else {
                 let kind = &token.kind();
-                digraph.vertex(i, Style::new().label(kind));
+                digraph.vertex(i, Style::new().label(kind).fontname("Monospace"));
             }
 
             if i != 0 {

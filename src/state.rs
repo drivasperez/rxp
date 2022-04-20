@@ -126,14 +126,18 @@ impl<'a> State<'a> {
             } else {
                 Shape::Circle
             };
-            digraph.vertex(id, Style::new().shape(shape));
+            digraph.vertex(id, Style::new().shape(shape).fontname("Monospace"));
             for t in transitions.iter() {
                 let label = match t.kind {
                     None => "\u{03B5}",
                     Some(TransitionKind::Literal(token)) => token.lexeme(),
                     Some(TransitionKind::Digit) => "\\\\d",
                 };
-                digraph.edge(id, t.state.id, Style::new().label(label));
+                digraph.edge(
+                    id,
+                    t.state.id,
+                    Style::new().label(label).fontname("Monospace"),
+                );
                 queue.push_back(t.state);
             }
             visited.insert(state.id);
@@ -435,14 +439,21 @@ impl<'a> DfaState<'a> {
 
             digraph.vertex(
                 id,
-                Style::new().label(format!("{{{node_label}}}")).shape(shape),
+                Style::new()
+                    .label(format!("{{{node_label}}}"))
+                    .shape(shape)
+                    .fontname("Monospace"),
             );
             for t in transitions.iter() {
                 let label = match t.kind {
                     TransitionKind::Literal(tok) => tok.lexeme(),
                     TransitionKind::Digit => "\\\\d",
                 };
-                digraph.edge(id, t.state.id, Style::new().label(label));
+                digraph.edge(
+                    id,
+                    t.state.id,
+                    Style::new().label(label).fontname("Monospace"),
+                );
                 queue.push_back(t.state);
             }
             visited.insert(state.id);

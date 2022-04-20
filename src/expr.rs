@@ -220,35 +220,40 @@ impl<'a> Expr<'a> {
         self.visit(&mut |r, _level| match &r {
             Self::Choice(ChoiceExpr { id, a, b }) => {
                 digraph
-                    .vertex(id, Style::new().label("Choice"))
+                    .vertex(id, Style::new().label("Choice").fontname("Monospace"))
                     .edge(id, a.id(), None)
                     .edge(id, b.id(), None);
             }
             Self::Sequence(SequenceExpr { id, start, end }) => {
                 digraph
-                    .vertex(id, Style::new().label("Sequence"))
+                    .vertex(id, Style::new().label("Sequence").fontname("Monospace"))
                     .edge(id, start.id(), None)
                     .edge(id, end.id(), None);
             }
             Self::Repetition(RepetitionExpr { id, term }) => {
                 digraph
-                    .vertex(id, Style::new().label("Repetition"))
+                    .vertex(id, Style::new().label("Repetition").fontname("Monospace"))
                     .edge(id, term.id(), None);
             }
             Self::OneOrMore(OneOrMoreExpr { id, term }) => {
                 digraph
-                    .vertex(id, Style::new().label("OneOrMore"))
+                    .vertex(id, Style::new().label("OneOrMore").fontname("Monospace"))
                     .edge(id, term.id(), None);
             }
             Self::Primitive(PrimitiveExpr { id, token }) => {
                 let lexeme = token.lexeme();
-                digraph.vertex(id, Style::new().label(format!("Primitive ({lexeme})")));
+                digraph.vertex(
+                    id,
+                    Style::new()
+                        .label(format!("Primitive ({lexeme})"))
+                        .fontname("Monospace"),
+                );
             }
             Self::Digit(DigitExpr { id }) => {
-                digraph.vertex(id, Style::new().label("\\\\d"));
+                digraph.vertex(id, Style::new().label("\\\\d").fontname("Monospace"));
             }
             Self::Blank(BlankExpr { id }) => {
-                digraph.vertex(id, Style::new().label("Blank"));
+                digraph.vertex(id, Style::new().label("Blank").fontname("Monospace"));
             }
         });
 
