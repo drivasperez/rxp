@@ -33,6 +33,16 @@ impl<T: std::fmt::Debug> InstrTree<T> {
         })
     }
 
+    fn initial_port(&self) -> Option<String> {
+        let node = self.instrs.get(0)?;
+        let port = match node {
+            InstrNode::Instr(ln, _) => format!("line{ln}"),
+            InstrNode::Block(block) => format!("block{}", block.id),
+        };
+
+        Some(port)
+    }
+
     pub fn starting_line(&self) -> Option<usize> {
         match self.instrs.first()? {
             InstrNode::Instr(ln, _) => Some(*ln),
@@ -58,16 +68,11 @@ impl<T: std::fmt::Debug> InstrTree<T> {
     }
 }
 
-fn graphviz_instr_row(line_number: usize, value: &str, is_first: bool) -> String {
-    let port = if !is_first {
-        line_number.to_string()
-    } else {
-        "init".to_string()
-    };
+fn graphviz_instr_row(line_number: usize, value: &str) -> String {
     format!(
         r#"
     <tr>
-      <td port="{port}" colspan="1">{line_number}</td>
+      <td port="line{line_number}" colspan="1">{line_number}</td>
       <td colspan="5">{value}</td>
     </tr>
     "#
@@ -78,7 +83,7 @@ fn graphviz_block_row(id: usize, title: &str) -> String {
     format!(
         r#"
     <tr>
-      <td height="50" port="out{id}" colspan="6">{title}</td>
+      <td height="50" port="block{id}" colspan="6">{title}</td>
     </tr>
     "#
     )
@@ -125,10 +130,9 @@ impl<T: std::fmt::Debug + std::fmt::Display> InstrTree<T> {
         let rows = self
             .instrs
             .iter()
-            .enumerate()
-            .map(|(i, inst)| match inst {
+            .map(|inst| match inst {
                 InstrNode::Instr(line_num, instr) => {
-                    graphviz_instr_row(*line_num, &instr.to_string(), i == 0)
+                    graphviz_instr_row(*line_num, &instr.to_string())
                 }
                 InstrNode::Block(block) => {
                     let start = block
@@ -156,7 +160,12 @@ impl<T: std::fmt::Debug + std::fmt::Display> InstrTree<T> {
             .iter()
             .filter_map(|instr| {
                 if let InstrNode::Block(block) = instr {
-                    Some(format!("{id}:out{} -> {}:init", block.id, block.id))
+                    Some(format!(
+                        "{id}:block{} -> {}:{};",
+                        block.id,
+                        block.id,
+                        block.initial_port()?
+                    ))
                 } else {
                     None
                 }
@@ -271,7 +280,7 @@ pub fn instructions_graphviz(expr: &Expr, graph_name: &str) -> String {
     let rows: Vec<String> = compile(expr)
         .into_iter()
         .enumerate()
-        .map(|(i, instr)| graphviz_instr_row(i, &instr.to_string(), false))
+        .map(|(i, instr)| graphviz_instr_row(i, &instr.to_string()))
         .collect();
 
     let rows = rows.join("\n");
