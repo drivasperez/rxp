@@ -16,6 +16,7 @@ structopt = "0.3.21"
 unicode-segmentation = "1.7.1"
 typed-arena = "2.0.1"
 color-eyre = {version = "0.6", default-features = false }
+regex-syntax = "0.6"
 
 
 [dev-dependencies]

@@ -545,6 +545,7 @@ version = "0.2.0"
 dependencies = [
  "color-eyre",
  "criterion",
+ "regex-syntax",
  "structopt",
  "typed-arena",
  "unicode-segmentation",

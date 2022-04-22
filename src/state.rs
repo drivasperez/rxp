@@ -4,9 +4,9 @@ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use typed_arena::Arena;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::expr::OneOrMore;
+use crate::ast::OneOrMore;
 use crate::{
-    expr::{Choice, Primitive, Repetition, Sequence},
+    ast::{Choice, Primitive, Repetition, Sequence},
     scanner::Token,
     Ast,
 };

@@ -1,5 +1,5 @@
 use super::Instruction;
-use crate::expr::{Ast, Blank, Choice, Digit, OneOrMore, Primitive, Repetition, Sequence};
+use crate::ast::{Ast, Blank, Choice, Digit, OneOrMore, Primitive, Repetition, Sequence};
 
 #[derive(Debug)]
 enum InstrNode<T: std::fmt::Debug> {

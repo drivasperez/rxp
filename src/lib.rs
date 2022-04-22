@@ -1,10 +1,10 @@
-use expr::{Ast, Blank, Choice, Primitive, Repetition, Sequence};
-use expr::{Digit, OneOrMore};
+use ast::{Ast, Blank, Choice, Primitive, Repetition, Sequence};
+use ast::{Digit, OneOrMore};
 use scanner::Token;
 use scanner::Tokens;
 use std::iter::Peekable;
 
-mod expr;
+mod ast;
 pub mod graphviz;
 mod scanner;
 mod state;

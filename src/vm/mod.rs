@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::expr::Ast;
+use crate::ast::Ast;
 
 pub mod compile;
 
