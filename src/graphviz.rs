@@ -1,3 +1,7 @@
+pub trait Graphviz {
+    fn graphviz(&self, graph_name: &str) -> String;
+}
+
 #[derive(Copy, Clone, Debug)]
 pub enum Shape {
     None,

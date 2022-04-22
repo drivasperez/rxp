@@ -3,7 +3,8 @@ use color_eyre::eyre::{eyre, Error, Result};
 use std::str::FromStr;
 
 use rxp::{
-    instructions_graphviz, vm_graphviz, Compiler, DfaCompiler, Parser, Scanner, VirtualMachine,
+    graphviz::Graphviz, instructions_graphviz, vm_graphviz, Compiler, DfaCompiler, Parser, Scanner,
+    VirtualMachine,
 };
 use structopt::StructOpt;
 
@@ -11,6 +12,7 @@ use structopt::StructOpt;
 enum Phase {
     Tokens,
     Ast,
+    Ast2,
     Nfa,
     Dfa,
     Vm,
@@ -24,6 +26,7 @@ impl FromStr for Phase {
         match s.to_lowercase().as_str() {
             "tokens" => Ok(Self::Tokens),
             "ast" => Ok(Self::Ast),
+            "ast2" => Ok(Self::Ast2),
             "nfa" => Ok(Self::Nfa),
             "dfa" => Ok(Self::Dfa),
             "vmtree" => Ok(Self::Vm),
@@ -114,6 +117,12 @@ fn visualise_ast(regex_string: &str) -> Result<String> {
     Ok(regex.graphviz("Parser"))
 }
 
+fn visualise_ast2(regex_string: &str) -> Result<String> {
+    let mut parser = regex_syntax::ast::parse::Parser::new();
+    let ast = parser.parse(regex_string)?;
+    Ok(ast.graphviz("Parser"))
+}
+
 fn visualise_nfa(regex_string: &str) -> Result<String> {
     let scanner = Scanner::new(regex_string);
     let mut parser = Parser::new(&scanner);
@@ -153,6 +162,9 @@ fn main() -> Result<()> {
             }
             Phase::Ast => {
                 println!("{}", visualise_ast(&regex)?)
+            }
+            Phase::Ast2 => {
+                println!("{}", visualise_ast2(&regex)?);
             }
             Phase::Nfa => {
                 println!("{}", visualise_nfa(&regex)?)
