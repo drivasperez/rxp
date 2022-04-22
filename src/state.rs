@@ -260,12 +260,14 @@ impl<'a> Compiler<'a> {
     // left.start -a-> right.start -b-> right.end
     // left.start -a-> right.start -b-> right.end -eps->
     fn compile_sequence(&'a self, expr: &SequenceExpr<'a>) -> NfaFragment<'a> {
-        let left = self.compile_nfa(&*expr.start);
-        let right = self.compile_nfa(&*expr.end);
+        let nfas: Vec<_> = expr.exprs.iter().map(|e| self.compile_nfa(e)).collect();
+        for window in nfas.windows(2) {
+            let left = &window[0];
+            let right = &window[1];
+            left.end.transit(None, right.start);
+        }
 
-        left.end.transit(None, right.start);
-
-        NfaFragment::new(left.start, right.end)
+        NfaFragment::new(nfas.first().unwrap().start, nfas.last().unwrap().end)
     }
 
     fn compile_repetition(&'a self, regex: &RepetitionExpr<'a>) -> NfaFragment<'a> {

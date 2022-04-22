@@ -46,17 +46,12 @@ impl<'a> ChoiceExpr<'a> {
 #[derive(Debug)]
 pub struct SequenceExpr<'a> {
     pub id: usize,
-    pub start: Box<Expr<'a>>,
-    pub end: Box<Expr<'a>>,
+    pub exprs: Vec<Expr<'a>>,
 }
 
 impl<'a> SequenceExpr<'a> {
-    pub fn new(id: usize, start: Expr<'a>, end: Expr<'a>) -> Self {
-        Self {
-            id,
-            start: Box::new(start),
-            end: Box::new(end),
-        }
+    pub fn new(id: usize, exprs: Vec<Expr<'a>>) -> Self {
+        Self { id, exprs }
     }
 }
 
@@ -136,10 +131,11 @@ impl<'a> Expr<'a> {
                 a._visit(f, level + 1);
                 b._visit(f, level + 1);
             }
-            Self::Sequence(SequenceExpr { start, end, .. }) => {
+            Self::Sequence(SequenceExpr { exprs, .. }) => {
                 f(self, level);
-                start._visit(f, level + 1);
-                end._visit(f, level + 1);
+                for expr in exprs {
+                    expr._visit(f, level + 1);
+                }
             }
             Self::Repetition(RepetitionExpr { term, .. })
             | Self::OneOrMore(OneOrMoreExpr { term, .. }) => {
@@ -169,8 +165,12 @@ impl<'a> Expr<'a> {
                     _ => format!("({})", b.fmt(source)),
                 },
             ),
-            Self::Sequence(SequenceExpr { start, end, .. }) => {
-                format!("{}{}", start.fmt(source), end.fmt(source))
+            Self::Sequence(SequenceExpr { exprs, .. }) => {
+                let mut s = String::new();
+                for expr in exprs {
+                    s.push_str(&expr.fmt(source));
+                }
+                s
             }
             Self::Repetition(RepetitionExpr { term, .. }) => format!(
                 "{}*",
@@ -192,8 +192,8 @@ impl<'a> Expr<'a> {
         }
     }
 
-    pub fn sequence(id: usize, a: Expr<'a>, b: Expr<'a>) -> Self {
-        Self::Sequence(SequenceExpr::new(id, a, b))
+    pub fn sequence(id: usize, exprs: Vec<Expr<'a>>) -> Self {
+        Self::Sequence(SequenceExpr::new(id, exprs))
     }
 
     pub fn choice(id: usize, start: Expr<'a>, end: Expr<'a>) -> Self {
@@ -224,11 +224,11 @@ impl<'a> Expr<'a> {
                     .edge(id, a.id(), None)
                     .edge(id, b.id(), None);
             }
-            Self::Sequence(SequenceExpr { id, start, end }) => {
-                digraph
-                    .vertex(id, Style::new().label("Sequence").fontname("Monospace"))
-                    .edge(id, start.id(), None)
-                    .edge(id, end.id(), None);
+            Self::Sequence(SequenceExpr { id, exprs }) => {
+                digraph.vertex(id, Style::new().label("Sequence").fontname("Monospace"));
+                for expr in exprs {
+                    digraph.edge(id, expr.id(), None);
+                }
             }
             Self::Repetition(RepetitionExpr { id, term }) => {
                 digraph

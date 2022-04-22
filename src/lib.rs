@@ -58,9 +58,9 @@ impl<'a> Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn sequence_expr(&mut self, a: Expr<'a>, b: Expr<'a>) -> Expr<'a> {
+    fn sequence_expr(&mut self, exprs: Vec<Expr<'a>>) -> Expr<'a> {
         let id = self.get_id();
-        Expr::Sequence(SequenceExpr::new(id, a, b))
+        Expr::Sequence(SequenceExpr::new(id, exprs))
     }
 
     fn choice_expr(&mut self, start: Expr<'a>, end: Expr<'a>) -> Expr<'a> {
@@ -148,10 +148,12 @@ impl<'a> Parser<'a> {
                 break;
             }
             let next_factor = self.factor()?;
-            if let Some(r) = factor {
-                factor = Some(self.sequence_expr(r, next_factor));
-            } else {
-                factor = Some(next_factor);
+            if factor.is_none() {
+                factor = Some(next_factor)
+            } else if let Some(Expr::Sequence(seq)) = &mut factor {
+                seq.exprs.push(next_factor);
+            } else if let Some(expr) = factor {
+                factor = Some(self.sequence_expr(vec![expr, next_factor]));
             }
         }
 

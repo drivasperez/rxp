@@ -179,15 +179,17 @@ impl Compiler {
     }
 
     fn compile_sequence<'a>(&mut self, exp: &'a SequenceExpr<'a>) -> InstrTree<Instruction<'a>> {
-        let SequenceExpr { id, start, end } = exp;
+        let SequenceExpr { id, exprs } = exp;
 
-        let start_instrs = self._compile(start);
-        let end_instrs = self._compile(end);
+        let instrs = exprs
+            .into_iter()
+            .map(|expr| InstrNode::Block(self._compile(expr)))
+            .collect();
 
         InstrTree {
             id: *id,
             title: "Sequence".to_string(),
-            instrs: vec![InstrNode::Block(start_instrs), InstrNode::Block(end_instrs)],
+            instrs,
         }
     }
 
