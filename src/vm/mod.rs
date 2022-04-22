@@ -48,7 +48,8 @@ impl<'a> VirtualMachine<'a> {
     }
 
     pub fn from_expr(expr: &'a Expr<'a>) -> Self {
-        let instructions = compile::compile(expr);
+        let compiler = compile::Compiler::new();
+        let instructions = compiler.compile(expr);
 
         Self { instructions }
     }
