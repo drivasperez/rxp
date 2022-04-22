@@ -12,6 +12,8 @@ Rxp (**R**egex e**xp**lorer) is a command-line utility for visualising and testi
 - `rxp dot ast <regex>`: Outputs the regular expression as an abstract syntax tree.
 - `rxp dot nfa <regex>`: Outputs the regular expression as an NFA (Non-deterministic finite automaton).
 - `rxp dot dfa <regex>`: Outputs the regular expression as a DFA (Deterministic finite automaton).
+- `rxp dot vm <regex>`: Outputs the regular expression as a linear list of virtual machine bytecode.
+- `rxp dot vmtree <regex>`: Outputs the regular expression as a tree of nodes containing virtual machine bytecode, arranged to reflect the underlying AST structure.
 
 ### Examples:
 
@@ -27,6 +29,13 @@ Rxp (**R**egex e**xp**lorer) is a command-line utility for visualising and testi
 
 - `rxp dot dfa '(a|b)*cde' | dot -Tpng > dfa_example.png`: 
   ![Example of the rxp dot dfa command](images/dfa_example.png)
+
+
+- `rxp dot vm '(a|b)*cde' | dot -Tpng > vm_example.png`: 
+  ![Example of the rxp dot vm command](images/vm_example.png)
+
+- `rxp dot vmtree '(a|b)*cde' | dot -Tpng > vmtree_example.png`: 
+  ![Example of the rxp dot vm command](images/vmtree_example.png)
 
 ## `rxp test <regex> <test-string>`
 
