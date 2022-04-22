@@ -4,11 +4,11 @@ use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use typed_arena::Arena;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::expr::OneOrMoreExpr;
+use crate::expr::OneOrMore;
 use crate::{
-    expr::{ChoiceExpr, PrimitiveExpr, RepetitionExpr, SequenceExpr},
+    expr::{Choice, Primitive, Repetition, Sequence},
     scanner::Token,
-    Expr,
+    Ast,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -212,19 +212,19 @@ impl<'a> Compiler<'a> {
         self.arena.alloc(State::new(id))
     }
 
-    pub fn compile(&'a self, expr: &Expr<'a>) -> &'a State {
+    pub fn compile(&'a self, expr: &Ast<'a>) -> &'a State {
         self.compile_nfa(expr).start
     }
 
-    fn compile_nfa(&'a self, expr: &Expr<'a>) -> NfaFragment<'a> {
+    fn compile_nfa(&'a self, expr: &Ast<'a>) -> NfaFragment<'a> {
         match &expr {
-            Expr::Blank(_) => self.compile_blank(),
-            Expr::Choice(e) => self.compile_choice(e),
-            Expr::Sequence(e) => self.compile_sequence(e),
-            Expr::Repetition(e) => self.compile_repetition(e),
-            Expr::OneOrMore(e) => self.compile_one_or_more(e),
-            Expr::Primitive(e) => self.compile_literal(e),
-            Expr::Digit(_) => self.compile_digit(),
+            Ast::Blank(_) => self.compile_blank(),
+            Ast::Choice(e) => self.compile_choice(e),
+            Ast::Sequence(e) => self.compile_sequence(e),
+            Ast::Repetition(e) => self.compile_repetition(e),
+            Ast::OneOrMore(e) => self.compile_one_or_more(e),
+            Ast::Primitive(e) => self.compile_literal(e),
+            Ast::Digit(_) => self.compile_digit(),
         }
     }
 
@@ -237,7 +237,7 @@ impl<'a> Compiler<'a> {
         frag
     }
 
-    fn compile_literal(&'a self, expr: &PrimitiveExpr<'a>) -> NfaFragment<'a> {
+    fn compile_literal(&'a self, expr: &Primitive<'a>) -> NfaFragment<'a> {
         let start = self.new_state();
         let end = self.new_state();
         let frag = NfaFragment::new(start, end);
@@ -259,7 +259,7 @@ impl<'a> Compiler<'a> {
     // left.start -a-> left.end -eps-> new -eps-> right.start -b-> right.end
     // left.start -a-> right.start -b-> right.end
     // left.start -a-> right.start -b-> right.end -eps->
-    fn compile_sequence(&'a self, expr: &SequenceExpr<'a>) -> NfaFragment<'a> {
+    fn compile_sequence(&'a self, expr: &Sequence<'a>) -> NfaFragment<'a> {
         let nfas: Vec<_> = expr.exprs.iter().map(|e| self.compile_nfa(e)).collect();
         for window in nfas.windows(2) {
             let left = &window[0];
@@ -270,7 +270,7 @@ impl<'a> Compiler<'a> {
         NfaFragment::new(nfas.first().unwrap().start, nfas.last().unwrap().end)
     }
 
-    fn compile_repetition(&'a self, regex: &RepetitionExpr<'a>) -> NfaFragment<'a> {
+    fn compile_repetition(&'a self, regex: &Repetition<'a>) -> NfaFragment<'a> {
         let entry = self.new_state();
         let left = self.compile_nfa(&*regex.term);
         let exit = self.new_state();
@@ -283,7 +283,7 @@ impl<'a> Compiler<'a> {
         frag
     }
 
-    fn compile_one_or_more(&'a self, regex: &OneOrMoreExpr<'a>) -> NfaFragment<'a> {
+    fn compile_one_or_more(&'a self, regex: &OneOrMore<'a>) -> NfaFragment<'a> {
         let initial = self.compile_nfa(&*regex.term);
         let repetition = {
             let entry = self.new_state();
@@ -304,7 +304,7 @@ impl<'a> Compiler<'a> {
         frag
     }
 
-    fn compile_choice(&'a self, expr: &ChoiceExpr<'a>) -> NfaFragment<'a> {
+    fn compile_choice(&'a self, expr: &Choice<'a>) -> NfaFragment<'a> {
         let entry = self.new_state();
         let left = self.compile_nfa(&*expr.a);
         let right = self.compile_nfa(&*expr.b);

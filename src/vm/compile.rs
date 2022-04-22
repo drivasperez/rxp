@@ -1,8 +1,5 @@
 use super::Instruction;
-use crate::expr::{
-    BlankExpr, ChoiceExpr, DigitExpr, Expr, OneOrMoreExpr, PrimitiveExpr, RepetitionExpr,
-    SequenceExpr,
-};
+use crate::expr::{Ast, Blank, Choice, Digit, OneOrMore, Primitive, Repetition, Sequence};
 
 #[derive(Debug)]
 enum InstrNode<T: std::fmt::Debug> {
@@ -60,7 +57,7 @@ impl<T: std::fmt::Debug> InstrTree<T> {
     }
 }
 
-pub fn vm_graphviz(expr: &Expr) -> String {
+pub fn vm_graphviz(expr: &Ast) -> String {
     let mut compiler = Compiler::new();
     let tree = compiler._compile(expr);
 
@@ -87,7 +84,7 @@ impl Compiler {
         ln
     }
 
-    pub(super) fn compile<'a>(mut self, expr: &'a Expr<'a>) -> Vec<Instruction<'a>> {
+    pub(super) fn compile<'a>(mut self, expr: &'a Ast<'a>) -> Vec<Instruction<'a>> {
         let tree = self._compile(expr);
         let mut instrs = tree.flatten();
 
@@ -96,20 +93,20 @@ impl Compiler {
         instrs
     }
 
-    fn _compile<'a>(&mut self, expr: &'a Expr<'a>) -> InstrTree<Instruction<'a>> {
+    fn _compile<'a>(&mut self, expr: &'a Ast<'a>) -> InstrTree<Instruction<'a>> {
         match expr {
-            Expr::Choice(exp) => self.compile_choice_expr(exp),
-            Expr::Sequence(exp) => self.compile_sequence(exp),
-            Expr::Repetition(exp) => self.compile_repetition(exp),
-            Expr::OneOrMore(exp) => self.compile_oneormore(exp),
-            Expr::Primitive(exp) => self.compile_primitive(exp),
-            Expr::Digit(exp) => self.compile_digit(exp),
-            Expr::Blank(exp) => self.compile_blank(exp),
+            Ast::Choice(exp) => self.compile_choice_expr(exp),
+            Ast::Sequence(exp) => self.compile_sequence(exp),
+            Ast::Repetition(exp) => self.compile_repetition(exp),
+            Ast::OneOrMore(exp) => self.compile_oneormore(exp),
+            Ast::Primitive(exp) => self.compile_primitive(exp),
+            Ast::Digit(exp) => self.compile_digit(exp),
+            Ast::Blank(exp) => self.compile_blank(exp),
         }
     }
 
-    fn compile_primitive<'a>(&mut self, exp: &'a PrimitiveExpr<'a>) -> InstrTree<Instruction<'a>> {
-        let PrimitiveExpr { token, id } = exp;
+    fn compile_primitive<'a>(&mut self, exp: &'a Primitive<'a>) -> InstrTree<Instruction<'a>> {
+        let Primitive { token, id } = exp;
 
         InstrTree {
             id: *id,
@@ -121,8 +118,8 @@ impl Compiler {
         }
     }
 
-    fn compile_digit<'a>(&mut self, exp: &'a DigitExpr) -> InstrTree<Instruction<'a>> {
-        let DigitExpr { id } = exp;
+    fn compile_digit<'a>(&mut self, exp: &'a Digit) -> InstrTree<Instruction<'a>> {
+        let Digit { id } = exp;
         InstrTree {
             id: *id,
             title: "digit".to_string(),
@@ -130,8 +127,8 @@ impl Compiler {
         }
     }
 
-    fn compile_blank<'a>(&mut self, exp: &'a BlankExpr) -> InstrTree<Instruction<'a>> {
-        let BlankExpr { id } = exp;
+    fn compile_blank<'a>(&mut self, exp: &'a Blank) -> InstrTree<Instruction<'a>> {
+        let Blank { id } = exp;
         InstrTree {
             id: *id,
             title: "blank".to_string(),
@@ -139,8 +136,8 @@ impl Compiler {
         }
     }
 
-    fn compile_choice_expr<'a>(&mut self, exp: &'a ChoiceExpr<'a>) -> InstrTree<Instruction<'a>> {
-        let ChoiceExpr { a, b, id } = exp;
+    fn compile_choice_expr<'a>(&mut self, exp: &'a Choice<'a>) -> InstrTree<Instruction<'a>> {
+        let Choice { a, b, id } = exp;
 
         let mut instrs = Vec::new();
 
@@ -178,8 +175,8 @@ impl Compiler {
         }
     }
 
-    fn compile_sequence<'a>(&mut self, exp: &'a SequenceExpr<'a>) -> InstrTree<Instruction<'a>> {
-        let SequenceExpr { id, exprs } = exp;
+    fn compile_sequence<'a>(&mut self, exp: &'a Sequence<'a>) -> InstrTree<Instruction<'a>> {
+        let Sequence { id, exprs } = exp;
 
         let instrs = exprs
             .into_iter()
@@ -193,11 +190,8 @@ impl Compiler {
         }
     }
 
-    fn compile_repetition<'a>(
-        &mut self,
-        exp: &'a RepetitionExpr<'a>,
-    ) -> InstrTree<Instruction<'a>> {
-        let RepetitionExpr { term, id } = exp;
+    fn compile_repetition<'a>(&mut self, exp: &'a Repetition<'a>) -> InstrTree<Instruction<'a>> {
+        let Repetition { term, id } = exp;
 
         // 0: spl 1, 3
         // 1: instr a
@@ -228,8 +222,8 @@ impl Compiler {
         }
     }
 
-    fn compile_oneormore<'a>(&mut self, exp: &'a OneOrMoreExpr<'a>) -> InstrTree<Instruction<'a>> {
-        let OneOrMoreExpr { term, id } = exp;
+    fn compile_oneormore<'a>(&mut self, exp: &'a OneOrMore<'a>) -> InstrTree<Instruction<'a>> {
+        let OneOrMore { term, id } = exp;
 
         // instr a
         // instr a
@@ -386,7 +380,7 @@ impl<T: std::fmt::Debug + std::fmt::Display> InstrTree<T> {
     }
 }
 
-pub fn instructions_graphviz(expr: &Expr, graph_name: &str) -> String {
+pub fn instructions_graphviz(expr: &Ast, graph_name: &str) -> String {
     let compiler = Compiler::new();
     let rows: Vec<String> = compiler
         .compile(expr)

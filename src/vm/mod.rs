@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::expr::Expr;
+use crate::expr::Ast;
 
 pub mod compile;
 
@@ -47,7 +47,7 @@ impl<'a> VirtualMachine<'a> {
         Self { instructions }
     }
 
-    pub fn from_expr(expr: &'a Expr<'a>) -> Self {
+    pub fn from_expr(expr: &'a Ast<'a>) -> Self {
         let compiler = compile::Compiler::new();
         let instructions = compiler.compile(expr);
 

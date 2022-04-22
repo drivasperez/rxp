@@ -15,7 +15,8 @@ keywords = ["regex"]
 structopt = "0.3.21"
 unicode-segmentation = "1.7.1"
 typed-arena = "2.0.1"
-color-eyre = "0.5"
+color-eyre = {version = "0.6", default-features = false }
+
 
 [dev-dependencies]
 criterion = "0.3"

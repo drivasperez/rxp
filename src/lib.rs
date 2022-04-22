@@ -1,5 +1,5 @@
-use expr::{BlankExpr, ChoiceExpr, Expr, PrimitiveExpr, RepetitionExpr, SequenceExpr};
-use expr::{DigitExpr, OneOrMoreExpr};
+use expr::{Ast, Blank, Choice, Primitive, Repetition, Sequence};
+use expr::{Digit, OneOrMore};
 use scanner::Token;
 use scanner::Tokens;
 use std::iter::Peekable;
@@ -52,45 +52,45 @@ impl<'a> Parser<'a> {
         id
     }
 
-    pub fn parse(&mut self) -> Result<Expr> {
+    pub fn parse(&mut self) -> Result<Ast> {
         self.regex()
     }
 }
 
 impl<'a> Parser<'a> {
-    fn sequence_expr(&mut self, exprs: Vec<Expr<'a>>) -> Expr<'a> {
+    fn sequence_expr(&mut self, exprs: Vec<Ast<'a>>) -> Ast<'a> {
         let id = self.get_id();
-        Expr::Sequence(SequenceExpr::new(id, exprs))
+        Ast::Sequence(Sequence::new(id, exprs))
     }
 
-    fn choice_expr(&mut self, start: Expr<'a>, end: Expr<'a>) -> Expr<'a> {
+    fn choice_expr(&mut self, start: Ast<'a>, end: Ast<'a>) -> Ast<'a> {
         let id = self.get_id();
-        Expr::Choice(ChoiceExpr::new(id, start, end))
+        Ast::Choice(Choice::new(id, start, end))
     }
 
-    fn repetition_expr(&mut self, n: Expr<'a>) -> Expr<'a> {
+    fn repetition_expr(&mut self, n: Ast<'a>) -> Ast<'a> {
         let id = self.get_id();
-        Expr::Repetition(RepetitionExpr::new(id, n))
+        Ast::Repetition(Repetition::new(id, n))
     }
 
-    fn one_or_more_expr(&mut self, n: Expr<'a>) -> Expr<'a> {
+    fn one_or_more_expr(&mut self, n: Ast<'a>) -> Ast<'a> {
         let id = self.get_id();
-        Expr::OneOrMore(OneOrMoreExpr::new(id, n))
+        Ast::OneOrMore(OneOrMore::new(id, n))
     }
 
-    fn primitive_expr(&mut self, t: Token<'a>) -> Expr<'a> {
+    fn primitive_expr(&mut self, t: Token<'a>) -> Ast<'a> {
         let id = self.get_id();
-        Expr::Primitive(PrimitiveExpr::new(id, t))
+        Ast::Primitive(Primitive::new(id, t))
     }
 
-    fn digit_expr(&mut self) -> Expr<'a> {
+    fn digit_expr(&mut self) -> Ast<'a> {
         let id = self.get_id();
-        Expr::Digit(DigitExpr::new(id))
+        Ast::Digit(Digit::new(id))
     }
 
-    fn blank_expr(&mut self) -> Expr<'a> {
+    fn blank_expr(&mut self) -> Ast<'a> {
         let id = self.get_id();
-        Expr::Blank(BlankExpr::new(id))
+        Ast::Blank(Blank::new(id))
     }
 }
 
@@ -118,7 +118,7 @@ impl<'a> Parser<'a> {
         self.peek().is_some()
     }
 
-    fn regex(&mut self) -> Result<Expr<'a>> {
+    fn regex(&mut self) -> Result<Ast<'a>> {
         let term = self.term()?;
 
         if self.eat(Token::Pipe).is_ok() {
@@ -129,7 +129,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn term(&mut self) -> Result<Expr<'a>> {
+    fn term(&mut self) -> Result<Ast<'a>> {
         if !self.more() {
             return Ok(self.blank_expr());
         }
@@ -150,7 +150,7 @@ impl<'a> Parser<'a> {
             let next_factor = self.factor()?;
             if factor.is_none() {
                 factor = Some(next_factor)
-            } else if let Some(Expr::Sequence(seq)) = &mut factor {
+            } else if let Some(Ast::Sequence(seq)) = &mut factor {
                 seq.exprs.push(next_factor);
             } else if let Some(expr) = factor {
                 factor = Some(self.sequence_expr(vec![expr, next_factor]));
@@ -160,7 +160,7 @@ impl<'a> Parser<'a> {
         factor.ok_or_else(|| eyre!("Unexpected character: {last:?}"))
     }
 
-    fn factor(&mut self) -> Result<Expr<'a>> {
+    fn factor(&mut self) -> Result<Ast<'a>> {
         let mut base = self.base()?;
 
         while self.eat(Token::Star).is_ok() {
@@ -174,7 +174,7 @@ impl<'a> Parser<'a> {
         Ok(base)
     }
 
-    fn base(&mut self) -> Result<Expr<'a>> {
+    fn base(&mut self) -> Result<Ast<'a>> {
         if let Some(peeked) = self.peek() {
             match peeked {
                 Token::LeftParen => {

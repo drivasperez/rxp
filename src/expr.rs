@@ -2,39 +2,39 @@ use crate::graphviz::{DiGraph, Style};
 use crate::scanner::Token;
 
 #[derive(Debug)]
-pub enum Expr<'a> {
-    Choice(ChoiceExpr<'a>),
-    Sequence(SequenceExpr<'a>),
-    Repetition(RepetitionExpr<'a>),
-    OneOrMore(OneOrMoreExpr<'a>),
-    Primitive(PrimitiveExpr<'a>),
-    Digit(DigitExpr),
-    Blank(BlankExpr),
+pub enum Ast<'a> {
+    Choice(Choice<'a>),
+    Sequence(Sequence<'a>),
+    Repetition(Repetition<'a>),
+    OneOrMore(OneOrMore<'a>),
+    Primitive(Primitive<'a>),
+    Digit(Digit),
+    Blank(Blank),
 }
 
-impl<'a> Expr<'a> {
+impl<'a> Ast<'a> {
     pub fn id(&self) -> usize {
         match self {
-            Self::Choice(ChoiceExpr { id, .. }) => *id,
-            Self::Sequence(SequenceExpr { id, .. }) => *id,
-            Self::Repetition(RepetitionExpr { id, .. }) => *id,
-            Self::OneOrMore(OneOrMoreExpr { id, .. }) => *id,
-            Self::Primitive(PrimitiveExpr { id, .. }) => *id,
-            Self::Blank(BlankExpr { id, .. }) => *id,
-            Self::Digit(DigitExpr { id }) => *id,
+            Self::Choice(Choice { id, .. }) => *id,
+            Self::Sequence(Sequence { id, .. }) => *id,
+            Self::Repetition(Repetition { id, .. }) => *id,
+            Self::OneOrMore(OneOrMore { id, .. }) => *id,
+            Self::Primitive(Primitive { id, .. }) => *id,
+            Self::Blank(Blank { id, .. }) => *id,
+            Self::Digit(Digit { id }) => *id,
         }
     }
 }
 
 #[derive(Debug)]
-pub struct ChoiceExpr<'a> {
+pub struct Choice<'a> {
     pub id: usize,
-    pub a: Box<Expr<'a>>,
-    pub b: Box<Expr<'a>>,
+    pub a: Box<Ast<'a>>,
+    pub b: Box<Ast<'a>>,
 }
 
-impl<'a> ChoiceExpr<'a> {
-    pub fn new(id: usize, a: Expr<'a>, b: Expr<'a>) -> Self {
+impl<'a> Choice<'a> {
+    pub fn new(id: usize, a: Ast<'a>, b: Ast<'a>) -> Self {
         Self {
             id,
             a: Box::new(a),
@@ -44,25 +44,25 @@ impl<'a> ChoiceExpr<'a> {
 }
 
 #[derive(Debug)]
-pub struct SequenceExpr<'a> {
+pub struct Sequence<'a> {
     pub id: usize,
-    pub exprs: Vec<Expr<'a>>,
+    pub exprs: Vec<Ast<'a>>,
 }
 
-impl<'a> SequenceExpr<'a> {
-    pub fn new(id: usize, exprs: Vec<Expr<'a>>) -> Self {
+impl<'a> Sequence<'a> {
+    pub fn new(id: usize, exprs: Vec<Ast<'a>>) -> Self {
         Self { id, exprs }
     }
 }
 
 #[derive(Debug)]
-pub struct RepetitionExpr<'a> {
+pub struct Repetition<'a> {
     pub id: usize,
-    pub term: Box<Expr<'a>>,
+    pub term: Box<Ast<'a>>,
 }
 
-impl<'a> RepetitionExpr<'a> {
-    pub fn new(id: usize, term: Expr<'a>) -> Self {
+impl<'a> Repetition<'a> {
+    pub fn new(id: usize, term: Ast<'a>) -> Self {
         Self {
             id,
             term: Box::new(term),
@@ -71,13 +71,13 @@ impl<'a> RepetitionExpr<'a> {
 }
 
 #[derive(Debug)]
-pub struct OneOrMoreExpr<'a> {
+pub struct OneOrMore<'a> {
     pub id: usize,
-    pub term: Box<Expr<'a>>,
+    pub term: Box<Ast<'a>>,
 }
 
-impl<'a> OneOrMoreExpr<'a> {
-    pub fn new(id: usize, term: Expr<'a>) -> Self {
+impl<'a> OneOrMore<'a> {
+    pub fn new(id: usize, term: Ast<'a>) -> Self {
         Self {
             id,
             term: Box::new(term),
@@ -86,59 +86,58 @@ impl<'a> OneOrMoreExpr<'a> {
 }
 
 #[derive(Debug)]
-pub struct PrimitiveExpr<'a> {
+pub struct Primitive<'a> {
     pub id: usize,
     pub token: Token<'a>,
 }
 
-impl<'a> PrimitiveExpr<'a> {
+impl<'a> Primitive<'a> {
     pub fn new(id: usize, token: Token<'a>) -> Self {
         Self { id, token }
     }
 }
 
 #[derive(Debug)]
-pub struct BlankExpr {
+pub struct Blank {
     pub id: usize,
 }
 
-impl BlankExpr {
+impl Blank {
     pub fn new(id: usize) -> Self {
         Self { id }
     }
 }
 
 #[derive(Debug)]
-pub struct DigitExpr {
+pub struct Digit {
     pub id: usize,
 }
 
-impl DigitExpr {
+impl Digit {
     pub fn new(id: usize) -> Self {
         Self { id }
     }
 }
 
-impl<'a> Expr<'a> {
-    pub fn visit(&self, f: &mut dyn FnMut(&Expr<'a>, usize)) {
+impl<'a> Ast<'a> {
+    pub fn visit(&self, f: &mut dyn FnMut(&Ast<'a>, usize)) {
         self._visit(f, 0)
     }
 
-    fn _visit(&self, f: &mut dyn FnMut(&Expr<'a>, usize), level: usize) {
+    fn _visit(&self, f: &mut dyn FnMut(&Ast<'a>, usize), level: usize) {
         match &self {
-            Self::Choice(ChoiceExpr { a, b, .. }) => {
+            Self::Choice(Choice { a, b, .. }) => {
                 f(self, level);
                 a._visit(f, level + 1);
                 b._visit(f, level + 1);
             }
-            Self::Sequence(SequenceExpr { exprs, .. }) => {
+            Self::Sequence(Sequence { exprs, .. }) => {
                 f(self, level);
                 for expr in exprs {
                     expr._visit(f, level + 1);
                 }
             }
-            Self::Repetition(RepetitionExpr { term, .. })
-            | Self::OneOrMore(OneOrMoreExpr { term, .. }) => {
+            Self::Repetition(Repetition { term, .. }) | Self::OneOrMore(OneOrMore { term, .. }) => {
                 f(self, level);
                 term._visit(f, level + 1);
             }
@@ -154,7 +153,7 @@ impl<'a> Expr<'a> {
         // TODO: bit buggy around parentheses
 
         match &self {
-            Self::Choice(ChoiceExpr { a, b, .. }) => format!(
+            Self::Choice(Choice { a, b, .. }) => format!(
                 "{}|{}",
                 match **a {
                     Self::Primitive(_) => a.fmt(source),
@@ -165,82 +164,82 @@ impl<'a> Expr<'a> {
                     _ => format!("({})", b.fmt(source)),
                 },
             ),
-            Self::Sequence(SequenceExpr { exprs, .. }) => {
+            Self::Sequence(Sequence { exprs, .. }) => {
                 let mut s = String::new();
                 for expr in exprs {
                     s.push_str(&expr.fmt(source));
                 }
                 s
             }
-            Self::Repetition(RepetitionExpr { term, .. }) => format!(
+            Self::Repetition(Repetition { term, .. }) => format!(
                 "{}*",
                 match **term {
                     Self::Primitive(_) => term.fmt(source),
                     _ => format!("({})", term.fmt(source)),
                 },
             ),
-            Self::OneOrMore(OneOrMoreExpr { term, .. }) => format!(
+            Self::OneOrMore(OneOrMore { term, .. }) => format!(
                 "{}+",
                 match **term {
                     Self::Primitive(_) => term.fmt(source),
                     _ => format!("({})", term.fmt(source)),
                 },
             ),
-            Self::Primitive(PrimitiveExpr { token, .. }) => token.lexeme().to_string(),
+            Self::Primitive(Primitive { token, .. }) => token.lexeme().to_string(),
             Self::Digit(_) => "\\d".to_string(),
             Self::Blank(_) => String::new(),
         }
     }
 
-    pub fn sequence(id: usize, exprs: Vec<Expr<'a>>) -> Self {
-        Self::Sequence(SequenceExpr::new(id, exprs))
+    pub fn sequence(id: usize, exprs: Vec<Ast<'a>>) -> Self {
+        Self::Sequence(Sequence::new(id, exprs))
     }
 
-    pub fn choice(id: usize, start: Expr<'a>, end: Expr<'a>) -> Self {
-        Self::Choice(ChoiceExpr::new(id, start, end))
+    pub fn choice(id: usize, start: Ast<'a>, end: Ast<'a>) -> Self {
+        Self::Choice(Choice::new(id, start, end))
     }
 
-    pub fn repetition(id: usize, n: Expr<'a>) -> Self {
-        Self::Repetition(RepetitionExpr::new(id, n))
+    pub fn repetition(id: usize, n: Ast<'a>) -> Self {
+        Self::Repetition(Repetition::new(id, n))
     }
 
     pub fn primitive(id: usize, t: Token<'a>) -> Self {
-        Self::Primitive(PrimitiveExpr::new(id, t))
+        Self::Primitive(Primitive::new(id, t))
     }
 
     pub fn blank(id: usize) -> Self {
-        Self::Blank(BlankExpr::new(id))
+        Self::Blank(Blank::new(id))
     }
 }
 
-impl<'a> Expr<'a> {
+impl<'a> Ast<'a> {
     pub fn graphviz(&'a self, graph_name: &str) -> String {
         let mut digraph = DiGraph::new(graph_name);
 
         self.visit(&mut |r, _level| match &r {
-            Self::Choice(ChoiceExpr { id, a, b }) => {
+            Self::Choice(Choice { id, a, b }) => {
                 digraph
                     .vertex(id, Style::new().label("Choice").fontname("Monospace"))
                     .edge(id, a.id(), None)
                     .edge(id, b.id(), None);
             }
-            Self::Sequence(SequenceExpr { id, exprs }) => {
+            Self::Sequence(Sequence { id, exprs }) => {
                 digraph.vertex(id, Style::new().label("Sequence").fontname("Monospace"));
                 for expr in exprs {
                     digraph.edge(id, expr.id(), None);
                 }
             }
-            Self::Repetition(RepetitionExpr { id, term }) => {
+            Self::Repetition(Repetition { id, term }) => {
                 digraph
                     .vertex(id, Style::new().label("Repetition").fontname("Monospace"))
                     .edge(id, term.id(), None);
             }
-            Self::OneOrMore(OneOrMoreExpr { id, term }) => {
+            Self::OneOrMore(OneOrMore { id, term }) => {
                 digraph
                     .vertex(id, Style::new().label("OneOrMore").fontname("Monospace"))
                     .edge(id, term.id(), None);
             }
-            Self::Primitive(PrimitiveExpr { id, token }) => {
+            Self::Primitive(Primitive { id, token }) => {
                 let lexeme = token.lexeme();
                 digraph.vertex(
                     id,
@@ -249,10 +248,10 @@ impl<'a> Expr<'a> {
                         .fontname("Monospace"),
                 );
             }
-            Self::Digit(DigitExpr { id }) => {
+            Self::Digit(Digit { id }) => {
                 digraph.vertex(id, Style::new().label("\\\\d").fontname("Monospace"));
             }
-            Self::Blank(BlankExpr { id }) => {
+            Self::Blank(Blank { id }) => {
                 digraph.vertex(id, Style::new().label("Blank").fontname("Monospace"));
             }
         });
