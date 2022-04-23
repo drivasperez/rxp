@@ -18,23 +18,29 @@ Rxp (**R**egex e**xp**lorer) is a command-line utility for visualising and testi
 ### Examples:
 
 - `rxp dot tokens '(a|b)*cde' | dot -Tpng > tokens_example.png`: 
+
   ![Example of the rxp dot tokens command](images/tokens_example.png)
 
 - `rxp dot ast '(a|b)*cde' | dot -Tpng > ast_example.png`: 
+
   ![Example of the rxp dot ast command](images/ast_example.png)
 
 - `rxp dot nfa '(a|b)*cde' | dot -Tpng > nfa_example.png`: 
+
   ![Example of the rxp dot nfa command](images/nfa_example.png)
   Arrows marked `ε` are [epsilon transitions](https://en.wikipedia.org/wiki/Epsilon_transition), or transitions which the automaton can make without consuming any input. Arrows marked with any other unicode grapheme cluster are transitions which the automaton can make by consuming a single element of its input. This might get confusing if your test string is in Greek. Sorry!
 
 - `rxp dot dfa '(a|b)*cde' | dot -Tpng > dfa_example.png`: 
+
   ![Example of the rxp dot dfa command](images/dfa_example.png)
 
 
 - `rxp dot vm '(a|b)*cde' | dot -Tpng > vm_example.png`: 
+
   ![Example of the rxp dot vm command](images/vm_example.png)
 
 - `rxp dot vmtree '(a|b)*cde' | dot -Tpng > vmtree_example.png`: 
+
   ![Example of the rxp dot vm command](images/vmtree_example.png)
 
 ## `rxp test <regex> <test-string>`
