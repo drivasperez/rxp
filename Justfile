@@ -1,3 +1,6 @@
+default: 
+  @just --list
+
 screenshots:
   cargo run -- dot tokens '(a|b)*cde' | dot -Tpng > images/tokens_example.png && \
   cargo run -- dot ast '(a|b)*cde' | dot -Tpng > images/ast_example.png && \
@@ -5,3 +8,6 @@ screenshots:
   cargo run -- dot dfa '(a|b)*cde' | dot -Tpng > images/dfa_example.png && \
   cargo run -- dot vm '(a|b)*cde' | dot -Tpng > images/vm_example.png && \
   cargo run -- dot vmtree '(a|b)*cde' | dot -Tpng > images/vmtree_example.png
+
+flamegraph ARGS:
+  CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph --root -- {{ARGS}}
